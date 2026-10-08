@@ -1,0 +1,14 @@
+action_dimension: 128
+
+backbone:
+  hidden_dimension: 256
+  heads: 8
+  layers: 2
+
+diffusion_head:
+  hidden_dimension: 1024
+  heads: 16
+  layers: 2
+
+mlp_ratio: 4.0
+dropout: 0.0

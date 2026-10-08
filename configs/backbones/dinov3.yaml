@@ -1,0 +1,8 @@
+model_id: vit_small_patch16_dinov3.lvd1689m
+pretrained: true
+image_size: 128
+layer_numbers: [3, 6, 9, 12]
+feature_dimension: 384
+# these are ImageNet std dev and mean. someone remind me to add the source for this and why we do this I dnt have wifi so cant go googling
+mean: [0.485, 0.456, 0.406]
+standard_deviation: [0.229, 0.224, 0.225]

@@ -1,0 +1,258 @@
+[project]
+name = "project"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "afrenkai", email = "frenkartemcool1@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4",
+    "black",
+    "click",
+    "constructs",
+    "cryptography",
+    "datasets",
+    "diffusers",
+    "docx",
+    "evaluate",
+    "fastapi",
+    "imagehash",
+    "fire",
+    "gitpython",
+    "httpx[socks]",
+    "hydra-core",
+    "ipdb",
+    "jaxtyping",
+    "jsonlines",
+    "jupytext",
+    "langdetect",
+    "liger-kernel; sys_platform == 'linux'",
+    "matplotlib",
+    "modal",
+    "multiprocess",
+    "mwparserfromhell",
+    "neptune",
+    "ninja",
+    "oauthlib",
+    "openpyxl",
+    "pandas",
+    "peft",
+    "Pillow",
+    "pre-commit",
+    "protobuf",
+    "curl-cffi",
+    "pydantic",
+    "pymupdf",
+    "python-dotenv",
+    "pyyaml",
+    "regex",
+    "requests",
+    "requests-oauthlib",
+    "safetensors",
+    "scikit-learn",
+    "sentence-transformers",
+    "sentencepiece",
+    "spacy",
+    "sqlalchemy",
+    "sqlitedict",
+    "tinker",
+    "torchmetrics",
+    "torchdiffeq",
+    "umap-learn",
+    "uvicorn",
+    "wandb",
+    "wheel",
+    "timm",
+    "beartype",
+    "einops",
+    "opencv-python",
+    "pytest",
+    "tqdm>=4.70.1",
+    "torchvision>=0.25.0",
+    "seaborn>=0.13.2",
+    "jupyter>=1.1.1",
+    "zarr<3",
+    "imagecodecs-numcodecs",
+    "torchaudio>=2.11.0",
+    "transformers>=5.18.0",
+    "gymnasium>=1.3.0",
+    "vizdoom>=1.3.1",
+]
+
+
+[project.scripts]
+project = "project:main"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+[project.optional-dependencies]
+ampere = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "transformers",
+    "bitsandbytes",
+    "accelerate",
+    "flash-attn; sys_platform == 'linux'",
+    "flash-linear-attention",
+    "causal-conv1d",
+    "mamba-ssm",
+    "flashinfer-python; sys_platform == 'linux'",
+    "flashinfer-cubin; sys_platform == 'linux'",
+    "flashinfer-jit-cache; sys_platform == 'linux'",
+    "gram-newton-schulz-ampere; sys_platform == 'linux'",
+    "kernels",
+    "dion",
+]
+ampere13 = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "transformers",
+    "bitsandbytes",
+    "accelerate",
+    "flash-attn; sys_platform == 'linux'",
+    "flash-linear-attention",
+    "causal-conv1d",
+    "mamba-ssm",
+    "flashinfer-python; sys_platform == 'linux'",
+    "flashinfer-cubin; sys_platform == 'linux'",
+    "flashinfer-jit-cache; sys_platform == 'linux'",
+    "gram-newton-schulz-ampere; sys_platform == 'linux'",
+    "kernels",
+    "dion",
+]
+cpu = [
+    "torch",
+    "torchvision",
+    "torchaudio",
+    "transformers",
+]
+
+[tool.uv]
+no-build-isolation-package = ["gram-newton-schulz"]
+constraint-dependencies = [
+    "flashinfer-python==0.6.13",
+    "flashinfer-cubin==0.6.13",
+    "flashinfer-jit-cache==0.6.13",
+]
+conflicts = [
+    [
+        { extra = "cpu" },
+        { extra = "ampere" },
+        { extra = "ampere13" },
+    ],
+]
+
+[tool.uv.extra-build-dependencies]
+causal-conv1d = [
+    { requirement = "torch", match-runtime = true },
+    "ninja",
+    "numpy",
+    "packaging",
+    "setuptools",
+    "wheel",
+]
+mamba-ssm = [
+    { requirement = "torch", match-runtime = true },
+    "ninja",
+    "numpy",
+    "packaging",
+    "setuptools",
+    "wheel",
+]
+vllm = [
+    { requirement = "torch", match-runtime = true },
+    "ninja",
+    "numpy",
+    "packaging",
+    "setuptools",
+    "wheel",
+]
+
+[tool.black]
+line-length = 120
+target-version = ["py312"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["architecture*", "evals*", "losses*", "train_datasets*", "training*", "transport*"]
+namespaces = true
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.8",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+]
+torchvision = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+]
+torchaudio = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+]
+flash-attn = [
+    { index = "astral-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
+    { index = "astral-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+]
+causal-conv1d = [
+    { index = "astral-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
+    { index = "astral-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+]
+mamba-ssm = [
+    { index = "astral-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
+    { index = "astral-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+]
+flashinfer-jit-cache = [
+    { index = "flashinfer-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
+    { index = "flashinfer-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+]
+gram-newton-schulz-ampere = { git = "https://github.com/afrenkai/Gram-Newton-Schulz-Ampere.git"}
+dion = { git = "https://github.com/microsoft/dion.git", rev = "71dc64f9fde8c3ee8643431390a16698bf32396f" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu129"
+url = "https://download.pytorch.org/whl/cu129"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "astral-cu129"
+url = "https://wheels.astral.sh/simple/cu129"
+explicit = true
+
+[[tool.uv.index]]
+name = "astral-cu130"
+url = "https://wheels.astral.sh/simple/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "flashinfer-cu129"
+url = "https://flashinfer.ai/whl/cu129"
+explicit = true
+
+[[tool.uv.index]]
+name = "flashinfer-cu130"
+url = "https://flashinfer.ai/whl/cu130"
+explicit = true
