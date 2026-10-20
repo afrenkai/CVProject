@@ -1,8 +1,11 @@
-from collections.abc import Sequence
+import json
+from collections.abc import Callable, Sequence
+
 import torch
 from beartype import beartype
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
+
 from architecture.av_model import AudioVisualFlowPredictor
 from architecture.pretraining.audio.audio_decoder import CausalAudioDecoder
 from architecture.pretraining.audio.encoder import HybridAudioEncoder
@@ -39,6 +42,8 @@ def pretrain_video_decoder(
             raise RuntimeError(f"Video-decoder pretraining failed on optimizer step {iteration + 1}")
         optimizer.step()
         losses.append(loss.item())
+        if (iteration + 1) % 100 == 0:
+            print(json.dumps({"stage": "video_decoder", "step": iteration + 1, "loss": loss.item()}), flush=True)
     return losses
 
 
@@ -67,6 +72,8 @@ def pretrain_audio_encoder(
             raise RuntimeError(f"Audio pretraining failed on optimizer step {iteration + 1}")
         optimizer.step()
         losses.append(loss.item())
+        if (iteration + 1) % 100 == 0:
+            print(json.dumps({"stage": "audio_encoder", "step": iteration + 1, "loss": loss.item()}), flush=True)
     return losses
 
 
@@ -88,10 +95,12 @@ def pretrain_latent_world_model(
     slim_lsd_start: int,
     slim_lsd_weight: float,
     maximum_time_gap: float,
+    checkpoint_callback: Callable[[int], None] | None = None,
+    checkpoint_interval: int = 1000,
 ) -> tuple[list[float], list[float], Int[Tensor, "batch target_time"]]:
-    if not latent_examples or iterations <= 0:
+    if not latent_examples or iterations <= 0 or checkpoint_interval <= 0:
         raise ValueError("World-model pretraining requires latent examples and positive iterations")
-    #TODO: ablate optimizers, muon first 
+    # TODO: ablate optimizers, muon first
     optimizer = torch.optim.AdamW(
         [*predictor.parameters(), *latent_action_model.parameters()],
         lr=learning_rate,
@@ -141,6 +150,10 @@ def pretrain_latent_world_model(
         total_losses.append(loss.item())
         lsd_losses.append(lsd_loss.item())
         final_code_ids = code_ids.detach()
+        if (iteration + 1) % 100 == 0:
+            print(json.dumps({"stage": "world_model", "step": iteration + 1, "loss": loss.item()}), flush=True)
+        if checkpoint_callback is not None and (iteration + 1) % checkpoint_interval == 0:
+            checkpoint_callback(iteration + 1)
     if final_code_ids is None:
         raise RuntimeError("World-model pretraining produced no latent actions")
     return total_losses, lsd_losses, final_code_ids

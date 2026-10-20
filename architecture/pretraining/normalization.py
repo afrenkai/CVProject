@@ -5,10 +5,11 @@ from torch import Tensor, nn
 
 
 class FrozenChannelNormalizer(nn.Module):
+    @jaxtyped(typechecker=beartype)
     def __init__(
         self,
-        mean: Float[Tensor, "channel"],
-        standard_deviation: Float[Tensor, "channel"],
+        mean: Float[Tensor, "channel"],  # noqa: F821
+        standard_deviation: Float[Tensor, "channel"],  # noqa: F821
     ) -> None:
         super().__init__()
         if mean.shape != standard_deviation.shape:
@@ -20,19 +21,14 @@ class FrozenChannelNormalizer(nn.Module):
         self.register_buffer("standard_deviation", standard_deviation.detach().clone())
 
     @jaxtyped(typechecker=beartype)
-    def forward(
-        self, latents: Float[Tensor, "*tokens channel"]
-    ) -> Float[Tensor, "*tokens channel"]:
+    def forward(self, latents: Float[Tensor, "*tokens channel"]) -> Float[Tensor, "*tokens channel"]:
         # eff z -scaling (x - mu) / sqrt(sigma**2)
         return (latents - self.mean) / self.standard_deviation
 
     @jaxtyped(typechecker=beartype)
-    def denormalize(
-        self, latents: Float[Tensor, "*tokens channel"]
-    ) -> Float[Tensor, "*tokens channel"]:
+    def denormalize(self, latents: Float[Tensor, "*tokens channel"]) -> Float[Tensor, "*tokens channel"]:
         # undo norm is also v easy, just x * (sqrt(sigma**2)) + mu
         return latents * self.standard_deviation + self.mean
-
 
 
 class AudioVisualNormalizer(nn.Module):
@@ -44,12 +40,12 @@ class AudioVisualNormalizer(nn.Module):
         audio_standard_deviation: Tensor,
     ) -> None:
         """
-        # wrapper around the nonsense I wrote on top. 
+        # wrapper around the nonsense I wrote on top.
         basically takes in mu_v, std_v, mu_a, std_a
         and uses the methods from the FrozenChannelNormalizer to give audio and video
         capability to be normed and de-normed
         """
-               super().__init__()
+        super().__init__()
         self.video = FrozenChannelNormalizer(video_mean, video_standard_deviation)
         self.audio = FrozenChannelNormalizer(audio_mean, audio_standard_deviation)
 

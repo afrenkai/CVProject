@@ -7,7 +7,9 @@ from training.types import Checkpoint, ModelModules
 def save_checkpoint(path: Path, modules: ModelModules) -> Path:
     checkpoint = {name: dict(module.state_dict()) for name, module in modules.items()}
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(checkpoint, path)
+    temporary_path = path.with_suffix(".partial")
+    torch.save(checkpoint, temporary_path)
+    temporary_path.replace(path)
     return path
 
 

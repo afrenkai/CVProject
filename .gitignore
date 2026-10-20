@@ -7,8 +7,13 @@ wheels/
 *.egg-info
 .ruff_cache/
 outputs/
+artifacts/
+.ipynb_checkpoints/
+paper/*.pdf
 _vizdoom.ini
 vizdoom-crash.log
 
 # Virtual environments
 .venv
+paper/
+formal/

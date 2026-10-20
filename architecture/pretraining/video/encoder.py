@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from contextlib import nullcontext
 from typing import cast
 
 import timm
@@ -20,7 +21,14 @@ class DinoVideoEncoder(nn.Module):
         layer_numbers: Sequence[int],
         mean: Sequence[float],
         standard_deviation: Sequence[float],
+        frozen: bool = True,
     ) -> None:
+        """
+        in general, dinoV2/V3 returns mean pooled lat of cls_tok, r_1 .. r_4
+        you can check fn_signature and look at a sample output
+        norm is imagenet norm usually
+        but could also be 3 ch of 0.5 (not really standard)
+        """
         super().__init__()
         if not layer_numbers or min(layer_numbers) < 1:
             raise ValueError("DINO layer numbers are one-based and must be positive")
@@ -47,8 +55,10 @@ class DinoVideoEncoder(nn.Module):
             torch.tensor(standard_deviation, dtype=torch.float32)[None, :, None, None],
             persistent=False,
         )
-        self.requires_grad_(False)
-        self.eval()
+        self.frozen = frozen
+        self.requires_grad_(not frozen)
+        if frozen:
+            self.eval()
 
     @jaxtyped(typechecker=beartype)
     def forward(
@@ -67,7 +77,8 @@ class DinoVideoEncoder(nn.Module):
                 align_corners=False,
             )
         images = (images - self.mean) / self.standard_deviation
-        with torch.no_grad():
+        gradient_context = torch.no_grad() if self.frozen else nullcontext()
+        with gradient_context:
             layer_features = cast(
                 list[Tensor],
                 self.backbone.forward_intermediates(

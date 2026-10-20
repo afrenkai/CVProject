@@ -1,10 +1,12 @@
 from typing import Self
+
 import torch
 from beartype import beartype
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
+
 from transport.solvers import audio_clock
 from transport.types import AudioVisualInterpolant, TransportConfig
 
@@ -24,13 +26,13 @@ class AudioVisualFlowTransport:
         return shift * time / (1.0 + (shift - 1.0) * time)
 
     @jaxtyped(typechecker=beartype)
-    def sample_time(self, reference: Float[Tensor, "batch ..."]) -> Float[Tensor, "batch"]:
+    def sample_time(self, reference: Float[Tensor, "batch ..."]) -> Float[Tensor, "batch"]:  # noqa: F821
         """
         given reference tensor and distribution (passed by cfg),
-        construct a time-series following that reference. 
+        construct a time-series following that reference.
         similar to torch/np.linspace but dist instead of axes
         returns a sigmoid offset by the 1st and 2nd moments of the dist.
-        helpful docs are torch.randn/rand for normal and unif, respectively. 
+        helpful docs are torch.randn/rand for normal and unif, respectively.
         """
         distribution = self.config.time_distribution
         if distribution.type == "uniform":
@@ -79,9 +81,9 @@ class AudioVisualFlowTransport:
     @jaxtyped(typechecker=beartype)
     def sample_end_time(
         self,
-        start_time: Float[Tensor, "batch"],
+        start_time: Float[Tensor, "batch"],  # noqa: F821
         maximum_time_gap: float,
-    ) -> Float[Tensor, "batch"]:
+    ) -> Float[Tensor, "batch"]:  # noqa: F821
         if not 0.0 < maximum_time_gap <= 1.0:
             raise ValueError("Maximum flow-map time gap must be in (0, 1]")
         return start_time + torch.rand_like(start_time) * (1.0 - start_time) * maximum_time_gap
@@ -92,7 +94,7 @@ class AudioVisualFlowTransport:
         self,
         integration_steps: int,
         reference: Float[Tensor, "batch ..."],
-    ) -> Float[Tensor, "grid"]:
+    ) -> Float[Tensor, "grid"]:  # noqa: F821
         if integration_steps <= 0:
             raise ValueError("Flow-map integration steps must be positive")
         uniform_grid = torch.linspace(

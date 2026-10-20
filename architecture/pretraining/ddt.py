@@ -1,19 +1,15 @@
-import torch
 from einops import rearrange
 from torch import Tensor, nn
 from torch.nn import functional
 
 from architecture.pretraining.tokens import AudioVisualTokenProjector
-from architecture.pretraining.transformers import (
-    AdaptiveAttentionBlock,
-    sinusoidal_timestep_embedding,
-)
+from architecture.pretraining.transformers import AdaptiveAttentionBlock
 
 
 class AdaptiveOutputProjection(nn.Module):
     def __init__(self, hidden_dimension: int, output_dimension: int) -> None:
         """
-        stole from Boyang and changed to look a little clener. 
+        stole from Boyang and changed to look a little clener.
         modulation is silu -> affine_fn for 2x h_dim
         zero init w,b for all since initially want to lean on the frozen representations
 
@@ -47,18 +43,20 @@ class AudioVisualDDTHead(nn.Module):
         layers: int,
         mlp_ratio: float,
         dropout: float,
+        spatial_grid: tuple[int, int] | None = None,
     ) -> None:
         super().__init__()
-        self.hidden_dimension = hidden_dimension
         self.target_tokens = AudioVisualTokenProjector(
             video_dimension,
             audio_dimension,
             hidden_dimension,
+            spatial_grid,
         )
         self.context_tokens = AudioVisualTokenProjector(
             video_dimension,
             audio_dimension,
             hidden_dimension,
+            spatial_grid,
         )
         self.action_projection = nn.Linear(
             action_dimension,
@@ -67,8 +65,7 @@ class AudioVisualDDTHead(nn.Module):
         )
         self.condition_projection = nn.Linear(backbone_dimension, hidden_dimension)
         self.blocks = nn.ModuleList(
-            AdaptiveAttentionBlock(hidden_dimension, heads, mlp_ratio, dropout)
-            for layer_index in range(layers)
+            AdaptiveAttentionBlock(hidden_dimension, heads, mlp_ratio, dropout) for layer_index in range(layers)
         )
         self.video_output = AdaptiveOutputProjection(
             hidden_dimension,
@@ -91,46 +88,16 @@ class AudioVisualDDTHead(nn.Module):
         attention_mask: Tensor,
     ) -> tuple[Tensor, Tensor]:
         target_steps = noisy_video.shape[1]
-        context_steps = context_video.shape[1]
         video_patches = noisy_video.shape[2]
-        target_positions = sinusoidal_timestep_embedding(
-            torch.arange(
-                target_steps,
-                device=noisy_video.device,
-                dtype=noisy_video.dtype,
-            ),
-            self.hidden_dimension,
-        )
-        context_positions = sinusoidal_timestep_embedding(
-            torch.arange(
-                -context_steps,
-                0,
-                device=noisy_video.device,
-                dtype=noisy_video.dtype,
-            ),
-            self.hidden_dimension,
-        )
-        target_action_embeddings = self.action_projection(target_actions)
-        context_action_embeddings = context_video.new_zeros(
-            (context_video.shape[0], context_steps, self.hidden_dimension)
-        )
         targets = self.target_tokens(
             noisy_video,
             noisy_audio,
-            target_positions,
-            target_action_embeddings,
+            0,
+            self.action_projection(target_actions),
         )
-        context = self.context_tokens(
-            context_video,
-            context_audio,
-            context_positions,
-            context_action_embeddings,
-        )
+        context = self.context_tokens(context_video, context_audio, -context_video.shape[1])
         condition = self.condition_projection(
-            functional.silu(
-                backbone_targets
-                + rearrange(backbone_condition, "batch hidden -> batch 1 hidden")
-            )
+            functional.silu(backbone_targets + rearrange(backbone_condition, "batch hidden -> batch 1 hidden"))
         )
         for block in self.blocks:
             targets = block(targets, context, condition, attention_mask)
