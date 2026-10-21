@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+
 import hydra
 import torch
 from omegaconf import DictConfig
@@ -9,7 +10,7 @@ from train_datasets.media import (
     load_media_manifest,
     validate_pretraining_records,
 )
-from training.pretraining.checkpoint import save_pretraining_checkpoint
+from training.checkpoint import save_pretraining_checkpoint
 from training.pretraining.models import build_pretraining_models
 from training.pretraining.normalization import fit_audio_visual_normalizer
 from training.pretraining.stages import (
@@ -138,7 +139,7 @@ def main(config: DictConfig) -> None:
                 "latent_action_codes": final_code_ids[0].tolist(),
                 "checkpoint": str(checkpoint_path),
             },
-            indent=2,
+            indent=4,
         )
     )
 
