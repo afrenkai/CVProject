@@ -1,13 +1,16 @@
 import torch
 from omegaconf import DictConfig, OmegaConf
+
 from architecture.av_model import AudioVisualFlowPredictor
 from architecture.pretraining.audio.audio_decoder import CausalAudioDecoder
 from architecture.pretraining.audio.encoder import HybridAudioEncoder
 from architecture.pretraining.latent_actions import LatentActionModel
 from architecture.pretraining.normalization import AudioVisualNormalizer
+from architecture.pretraining.recorded_controls import RecordedControlEncoder
 from architecture.pretraining.types import WorldModelConfig
 from architecture.pretraining.video.encoder import DinoVideoEncoder
 from architecture.pretraining.video.video_decoder import DinoVideoDecoder
+from train_datasets.control_types import ControlEncoderConfig
 from training.pretraining.types import PretrainingModels
 
 
@@ -29,14 +32,20 @@ def build_flow_predictor(
         config.diffusion_head.layers,
         config.mlp_ratio,
         config.dropout,
+        config.backbone_attention,
+        config.hybrid_history,
+        config.noise_time_embedding,
+        config.spatial_grid,
     ).to(device)
 
 
-def build_pretraining_models(config: DictConfig, device: torch.device) -> PretrainingModels:
+def build_pretraining_models(
+    config: DictConfig, device: torch.device, pretrained_video: bool | None = None
+) -> PretrainingModels:
     world_model = WorldModelConfig.model_validate(OmegaConf.to_container(config.world_model, resolve=True))
     video_encoder = DinoVideoEncoder(
         config.video_encoder.model_id,
-        config.video_encoder.pretrained,
+        config.video_encoder.pretrained if pretrained_video is None else pretrained_video,
         config.video_encoder.image_size,
         config.video_encoder.layer_numbers,
         config.video_encoder.mean,
@@ -82,12 +91,22 @@ def build_pretraining_models(config: DictConfig, device: torch.device) -> Pretra
         config.latent_actions.code_count,
         config.latent_actions.ema_decay,
         config.latent_actions.ema_epsilon,
+        config.world_pretraining.get("latent_action_audio", "transition"),
     ).to(device)
     predictor = build_flow_predictor(
         config.video_encoder.feature_dimension,
         config.audio_encoder.latent_dimension,
         world_model,
         device,
+    )
+    controls = config.world_pretraining.get("recorded_controls")
+    control_encoder = (
+        RecordedControlEncoder(
+            ControlEncoderConfig.model_validate(OmegaConf.to_container(controls, resolve=True)),
+            world_model.action_dimension,
+        ).to(device)
+        if controls is not None
+        else None
     )
     return PretrainingModels(
         video_encoder=video_encoder,
@@ -97,4 +116,5 @@ def build_pretraining_models(config: DictConfig, device: torch.device) -> Pretra
         normalizer=normalizer,
         latent_action_model=latent_action_model,
         predictor=predictor,
+        control_encoder=control_encoder,
     )

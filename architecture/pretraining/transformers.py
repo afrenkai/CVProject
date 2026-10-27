@@ -1,27 +1,31 @@
-import math
 import torch
-from einops import rearrange
+from beartype import beartype
+from diffusers.models.embeddings import get_timestep_embedding
+from einops import einsum, rearrange
+from jaxtyping import Float, jaxtyped
 from torch import Tensor, nn
 from torch.nn import functional
-from architecture.pretraining.types import RoPETuple
 
-# vaswani PE, stole from old code. 
+
+# vaswani PE, stole from old code.
 def sinusoidal_timestep_embedding(timesteps: Tensor, dimension: int) -> Tensor:
-    timesteps = timesteps.reshape(-1).float()
-    half_dimension = dimension // 2
-    frequencies = torch.exp(
-        -math.log(10000)
-        * torch.arange(half_dimension, device=timesteps.device)
-        / max(half_dimension - 1, 1)
+    return get_timestep_embedding(
+        timesteps.reshape(-1).float(),
+        dimension,
+        flip_sin_to_cos=True,
+        downscale_freq_shift=min(1, dimension // 2 - 1),
     )
-    embedding = torch.cat(
-        (
-            torch.cos(timesteps[:, None] * frequencies),
-            torch.sin(timesteps[:, None] * frequencies),
-        ),
-        dim=-1,
+
+
+@jaxtyped(typechecker=beartype)
+def frame_position_embeddings(
+    reference: Float[Tensor, "..."], dimension: int, start: int, stop: int
+) -> Float[Tensor, "position hidden"]:
+    return sinusoidal_timestep_embedding(
+        torch.arange(start, stop, device=reference.device, dtype=reference.dtype),
+        dimension,
     )
-    return functional.pad(embedding, (0, dimension % 2)).to(timesteps.dtype)
+
 
 # in general, referred to https://docs.pytorch.org/docs/master/generated/torch.nn.MultiheadAttention.html for this
 class MultiHeadAttention(nn.Module):
@@ -44,7 +48,6 @@ class MultiHeadAttention(nn.Module):
         query: Tensor,
         key: Tensor,
         value: Tensor,
-        rope: RoPETuple | None = None,
         attention_mask: Tensor | None = None,
     ) -> Tensor:
         """
@@ -56,7 +59,6 @@ class MultiHeadAttention(nn.Module):
         @param query: query tensorfor self-attn
         @param key: key tensor for self-attn
         @param value: value tensor for self-attn
-        @param rope: tuple of cos, sin tensors for PE
         @param attn_mask: optional attention mask to hide future preds from current state. written to be compat with F.SDPA
         Returns:
             O = A(QK^T/sqrt(d_h)V) which is of shap e b x q x L (L = hxch)
@@ -81,9 +83,6 @@ class MultiHeadAttention(nn.Module):
             "batch key (head channel) -> batch head key channel",
             head=self.heads,
         )
-        if rope is not None:
-            query_tokens = rope[0](query_tokens)
-            key_tokens = rope[1](key_tokens)
         attended = functional.scaled_dot_product_attention(
             query_tokens,
             key_tokens,
@@ -96,6 +95,99 @@ class MultiHeadAttention(nn.Module):
             "batch head query channel -> batch query (head channel)",
         )
         return self.output_projection(attended)
+
+
+class LinearAttention(nn.Module):
+    def __init__(self, dimension: int, heads: int, dropout: float = 0.0) -> None:
+        super().__init__()
+        if dimension % heads:
+            raise ValueError("Attention dimension must be divisible by its head count")
+        self.heads = heads
+        self.head_dimension = dimension // heads
+        self.query_projection = nn.Linear(dimension, dimension, bias=False)
+        self.key_projection = nn.Linear(dimension, dimension, bias=False)
+        self.value_projection = nn.Linear(dimension, dimension, bias=False)
+        self.output_projection = nn.Linear(dimension, dimension, bias=False)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(
+        self,
+        query: Tensor,
+        key: Tensor,
+        value: Tensor,
+        causal_prefix_lengths: Tensor | None = None,
+    ) -> Tensor:
+        query_features = (
+            functional.elu(
+                rearrange(
+                    self.query_projection(query),
+                    "batch token (head channel) -> batch head token channel",
+                    head=self.heads,
+                )
+            )
+            + 1.0
+        )
+        key_features = (
+            functional.elu(
+                rearrange(
+                    self.key_projection(key),
+                    "batch token (head channel) -> batch head token channel",
+                    head=self.heads,
+                )
+            )
+            + 1.0
+        )
+        values = rearrange(
+            self.value_projection(value),
+            "batch token (head channel) -> batch head token channel",
+            head=self.heads,
+        )
+
+        if causal_prefix_lengths is None:
+            key_sum = key_features.sum(dim=2, keepdim=True)
+            key_values = einsum(
+                key_features,
+                values,
+                "batch head time key, batch head time value -> batch head key value",
+            )
+            attended = einsum(
+                query_features,
+                key_values,
+                "batch head query key, batch head key value -> batch head query value",
+            )
+            normalizer = einsum(
+                query_features,
+                key_sum,
+                "batch head query key, batch head singleton key -> batch head query singleton",
+            )
+        else:
+            if causal_prefix_lengths.ndim != 1 or causal_prefix_lengths.shape[0] != query.shape[1]:
+                raise ValueError("Causal prefix lengths must provide one value per query token")
+            if int(causal_prefix_lengths.min()) < 1 or int(causal_prefix_lengths.max()) > key.shape[1]:
+                raise ValueError("Causal prefix lengths fall outside the key sequence")
+            prefix_indices = causal_prefix_lengths.to(device=query.device, dtype=torch.long) - 1
+            cumulative_keys = key_features.cumsum(dim=2)
+            cumulative_key_values = einsum(
+                key_features,
+                values,
+                "batch head time key, batch head time value -> batch head time key value",
+            ).cumsum(dim=2)
+            selected_keys = cumulative_keys[:, :, prefix_indices]
+            selected_key_values = cumulative_key_values[:, :, prefix_indices]
+            attended = einsum(
+                query_features,
+                selected_key_values,
+                "batch head query key, batch head query key value -> batch head query value",
+            )
+            normalizer = einsum(
+                query_features,
+                selected_keys,
+                "batch head query key, batch head query key -> batch head query",
+            )[:, :, :, None]
+
+        attended = attended / normalizer.clamp_min(1e-6)
+        attended = rearrange(attended, "batch head token channel -> batch token (head channel)")
+        return self.output_projection(self.dropout(attended))
 
 
 class SwiGLUFeedForward(nn.Module):
@@ -142,9 +234,7 @@ class AdaptiveAttentionBlock(nn.Module):
         modulation_values = self.modulation(condition).chunk(9, dim=-1)
         self_shift, self_scale, self_gate = modulation_values[:3]
         cross_shift, cross_scale, cross_gate = modulation_values[3:6]
-        feed_forward_shift, feed_forward_scale, feed_forward_gate = modulation_values[
-            6:
-        ]
+        feed_forward_shift, feed_forward_scale, feed_forward_gate = modulation_values[6:]
 
         self_input = self.self_norm(targets) * (1 + self_scale) + self_shift
         self_output = self.self_attention(
@@ -164,9 +254,6 @@ class AdaptiveAttentionBlock(nn.Module):
         )
         targets = targets + self.dropout(cross_gate * cross_output)
 
-        feed_forward_input = (
-            self.feed_forward_norm(targets) * (1 + feed_forward_scale)
-            + feed_forward_shift
-        )
+        feed_forward_input = self.feed_forward_norm(targets) * (1 + feed_forward_scale) + feed_forward_shift
         feed_forward_output = self.feed_forward(feed_forward_input)
         return targets + self.dropout(feed_forward_gate * feed_forward_output)

@@ -1,5 +1,5 @@
-from collections.abc import Callable
-from typing import Self
+from typing import Literal, Self
+
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -8,13 +8,21 @@ from pydantic import (
     PositiveInt,
     model_validator,
 )
-from torch import Tensor
+
+type ActionAudioConditioning = Literal["transition", "past_only"]
 
 
-type RoPETuple = tuple[
-    Callable[[Tensor], Tensor],
-    Callable[[Tensor], Tensor],
-]
+class HybridHistoryConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    block_pattern: tuple[Literal["kda"], Literal["kda"], Literal["kda"], Literal["softmax"]] = (
+        "kda",
+        "kda",
+        "kda",
+        "softmax",
+    )
+    chunk_size: PositiveInt = 16
+    minimum_log_decay: float = Field(default=-5.0, lt=0.0)
 
 
 class TransformerStageConfig(BaseModel):
@@ -27,9 +35,7 @@ class TransformerStageConfig(BaseModel):
     @model_validator(mode="after")
     def validate_attention_heads(self) -> Self:
         if self.hidden_dimension % self.heads:
-            raise ValueError(
-                "Transformer hidden dimension must be divisible by its head count"
-            )
+            raise ValueError("Transformer hidden dimension must be divisible by its head count")
         return self
 
 
@@ -37,6 +43,10 @@ class WorldModelConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     action_dimension: PositiveInt
+    backbone_attention: Literal["quadratic", "linear", "hybrid_kda"] = "quadratic"
+    noise_time_embedding: Literal["sinusoidal", "gaussian_fourier"] = "sinusoidal"
+    spatial_grid: tuple[PositiveInt, PositiveInt] | None = None
+    hybrid_history: HybridHistoryConfig = Field(default_factory=HybridHistoryConfig)
     backbone: TransformerStageConfig
     diffusion_head: TransformerStageConfig
     mlp_ratio: PositiveFloat = 4.0

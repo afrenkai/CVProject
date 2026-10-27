@@ -1,19 +1,24 @@
 import json
 from pathlib import Path
+
 import hydra
 import torch
 from omegaconf import DictConfig
-from train_datasets.huggingface import load_audio_clip, load_av_clip
-from train_datasets.manifest import load_episode_manifest
-from train_datasets.media import load_manifest_audio_clip, load_manifest_av_clip
-from training.checkpoint import save_checkpoint
-from training.pretraining.loops import (
+
+from train_datasets.media import (
+    load_av_clip,
+    load_media_manifest,
+    validate_pretraining_records,
+)
+from training.checkpoint import save_pretraining_checkpoint
+from training.pretraining.models import build_pretraining_models
+from training.pretraining.normalization import fit_audio_visual_normalizer
+from training.pretraining.stages import (
     pretrain_audio_encoder,
     pretrain_latent_world_model,
     pretrain_video_decoder,
 )
-from training.pretraining.models import build_pretraining_models
-from training.pretraining.normalization import fit_audio_visual_normalizer
+from training.runtime import cuda_device
 from transport.flow import AudioVisualFlowTransport
 
 
@@ -27,77 +32,39 @@ def summarize_losses(losses: list[float]) -> dict[str, float]:
     }
 
 
-@hydra.main(config_path="../../configs", config_name="pretraining", version_base=None)
+@hydra.main(config_path=None, version_base=None)
 def main(config: DictConfig) -> None:
-    torch.manual_seed(config.runtime.seed)
-    device = torch.device(config.runtime.device)
+    device = cuda_device(config.runtime.seed)
     transport = AudioVisualFlowTransport.from_omegaconf(config.transport)
     total_steps = config.data.context_steps + config.data.target_steps
-    sample_count = total_steps * config.audio_encoder.sample_rate // config.data.frames_per_second
-
-    av_clips = []
-    for source in config.sources.audio_visual:
-        arrow_path = None if source.arrow is None else Path(source.arrow)
-        av_clips.append(
-            load_av_clip(
-                str(source.repository),
-                str(source.split),
-                arrow_path,
-                int(source.sample_index),
-                config.data.frames_per_second,
-                total_steps,
-                config.data.image_size,
-                config.audio_encoder.sample_rate,
-                config.audio_encoder.input_channels,
-            )
-        )
-    for source in config.sources.audio_visual_manifests:
-        records = load_episode_manifest(Path(source.path))
-        record = records[int(source.episode_index)]
-        if record.split != "train":
-            raise ValueError(f"Pretraining manifest episode must use the train split: {record.episode_id}")
-        av_clips.append(
-            load_manifest_av_clip(
-                record,
-                config.data.frames_per_second,
-                total_steps,
-                config.data.image_size,
-                config.audio_encoder.sample_rate,
-                config.audio_encoder.input_channels,
-            )
-        )
-    audio_clips = [
-        load_audio_clip(
-            str(source.repository),
-            str(source.split),
-            int(source.sample_index),
-            str(source.audio_column),
+    records = load_media_manifest(Path(config.data.manifest), "train")
+    excluded = list(config.data.excluded_datasets)
+    validate_pretraining_records(records, excluded)
+    av_clips = [
+        load_av_clip(
+            record,
+            config.data.frames_per_second,
+            total_steps,
+            config.data.image_size,
             config.audio_encoder.sample_rate,
             config.audio_encoder.input_channels,
-            sample_count,
         )
-        for source in config.sources.audio
+        for record in records
     ]
-    for source in config.sources.audio_manifests:
-        records = load_episode_manifest(Path(source.path))
-        record = records[int(source.episode_index)]
-        if record.split != "train":
-            raise ValueError(f"Pretraining manifest episode must use the train split: {record.episode_id}")
-        audio_clips.append(
-            load_manifest_audio_clip(
-                record,
-                config.audio_encoder.sample_rate,
-                config.audio_encoder.input_channels,
-                sample_count,
-            )
-        )
-    if not av_clips:
-        raise ValueError("Generic world-model pretraining requires paired AV clips")
+    print(
+        json.dumps(
+            {
+                "training_clips": len(records),
+                "training_domains": sorted({record.dataset for record in records}),
+                "excluded_games": sorted(excluded),
+            }
+        ),
+        flush=True,
+    )
 
     models = build_pretraining_models(config, device)
 
-    waveforms = [clip.waveform[None].to(device) for clip in audio_clips]
-    waveforms.extend(clip.waveform[None].to(device) for clip in av_clips)
+    waveforms = [clip.waveform[None].to(device) for clip in av_clips]
     audio_losses = pretrain_audio_encoder(
         models.audio_encoder,
         models.audio_decoder,
@@ -107,6 +74,8 @@ def main(config: DictConfig) -> None:
     )
     models.audio_encoder.requires_grad_(False)
     models.audio_encoder.eval()
+    if models.audio_encoder.total_stride * config.data.frames_per_second != config.audio_encoder.sample_rate:
+        raise ValueError("Causal audio tokens must align with the video frame rate")
     raw_latent_examples: list[tuple[torch.Tensor, torch.Tensor]] = []
     with torch.no_grad():
         for clip in av_clips:
@@ -139,6 +108,10 @@ def main(config: DictConfig) -> None:
         for video_latents, audio_latents in raw_latent_examples
     ]
 
+    def save_world_checkpoint(iteration: int) -> None:
+        checkpoint_path = save_pretraining_checkpoint(Path(config.output.directory), models, config)
+        print(json.dumps({"world_step": iteration, "checkpoint": str(checkpoint_path)}), flush=True)
+
     world_losses, slim_lsd_losses, final_code_ids = pretrain_latent_world_model(
         transport,
         models.predictor,
@@ -151,16 +124,14 @@ def main(config: DictConfig) -> None:
         config.slim_lsd.start_iteration,
         config.slim_lsd.weight,
         config.slim_lsd.maximum_time_gap,
+        save_world_checkpoint,
+        config.world_pretraining.checkpoint_interval,
     )
-    checkpoint_path = save_checkpoint(
-        Path(config.output.checkpoint),
-        models.pretraining_checkpoint_modules(),
-    )
+    checkpoint_path = save_pretraining_checkpoint(Path(config.output.directory), models, config)
     print(
         json.dumps(
             {
-                "audio_sources": [{"dataset": clip.dataset, "sample_id": clip.sample_id} for clip in audio_clips],
-                "audio_visual_sources": [{"dataset": clip.dataset, "sample_id": clip.sample_id} for clip in av_clips],
+                "audio_visual_sources": [record.model_dump(mode="json") for record in records],
                 "audio_loss": summarize_losses(audio_losses),
                 "video_decoder_loss": summarize_losses(video_decoder_losses),
                 "world_loss": summarize_losses(world_losses),
@@ -168,7 +139,7 @@ def main(config: DictConfig) -> None:
                 "latent_action_codes": final_code_ids[0].tolist(),
                 "checkpoint": str(checkpoint_path),
             },
-            indent=2,
+            indent=4,
         )
     )
 

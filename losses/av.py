@@ -1,8 +1,11 @@
 import torch
 from beartype import beartype
+from einops import reduce
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
+from torch.nn import functional
 from torch.nn.attention import SDPBackend, sdpa_kernel
+
 from architecture.av_model import AudioVisualFlowPredictor
 from transport.flow import AudioVisualFlowTransport
 from transport.solvers import flow_map_jump
@@ -16,24 +19,26 @@ def flow_matching_loss(
     audio_latents: Float[Tensor, "batch time audio_feature"],
     context_steps: int,
     actions: Float[Tensor, "batch target_time action"] | None,
+    modality_presence: Float[Tensor, "batch 2"] | None = None,
+    context_presence: Float[Tensor, "batch 2"] | None = None,
 ) -> Float[Tensor, ""]:
     """
     Follows the Lipman, et. al formulation of flow matching. However, the comp graph is slightly different
 
-    effectively: model spits out audio and video latents. up to some context steps, context audio and video is retained. 
+    effectively: model spits out audio and video latents. up to some context steps, context audio and video is retained.
 
     these are stopgradded for the LSD formulation from Boffi, et. al
 
     the comp graph, as a result looks like
 
-    Eq 27 from Boffi Et. Al for each modality. 
+    Eq 27 from Boffi Et. Al for each modality.
 
 
     @param transport: class which has sampling and solver for flow matching
     @param predictor: z_t predictor (DiTDH)which is our actual "world model" end state. this is supposed to do latent rollouts
     @param video_latents: float tensor representing the outputs of passing video through encoder. shape batch x timesteps x patch x video_feature (or feature, like we call it later)
     @param audio_latents float tensor representing results of passing waveform through audio encoder of shape batch x timesteps x audio_features
-    @param context_steps: int. meant for a "window", or cutoff for how much ctx to provide. Will need to find happy medium for this and action conditioning. 
+    @param context_steps: int. meant for a "window", or cutoff for how much ctx to provide. Will need to find happy medium for this and action conditioning.
     @param actions: optional float tensor of shape batch x target_time x action meant to learn latent action for a LAM. might deprecate
 
     Returns:
@@ -42,17 +47,33 @@ def flow_matching_loss(
     # ctx detach for rhs of flow matching
     context_video = video_latents[:, :context_steps].detach()
     context_audio = audio_latents[:, :context_steps].detach()
-    
-    #sg for LSD
+
+    # sg for LSD
     target_video = video_latents[:, context_steps:].detach()
     target_audio = audio_latents[:, context_steps:].detach()
-    
-    #(s,t)
+
+    # (s,t)
     interpolant = transport.sample_interpolant(target_video, target_audio)
-    #\dot(v) \forall{m}
+    video_state = interpolant.video_state
+    audio_state = interpolant.audio_state
+    if modality_presence is not None:
+        if not torch.all((modality_presence == 0) | (modality_presence == 1)) or not torch.all(
+            modality_presence.sum(-1) > 0
+        ):
+            raise ValueError("Every example must contain at least one declared observed modality")
+        video_mask = modality_presence[:, 0, None, None, None]
+        audio_mask = modality_presence[:, 1, None, None]
+        context_video = context_video * video_mask
+        context_audio = context_audio * audio_mask
+        video_state = video_state * video_mask
+        audio_state = audio_state * audio_mask
+    if context_presence is not None:
+        context_video = context_video * context_presence[:, 0, None, None, None]
+        context_audio = context_audio * context_presence[:, 1, None, None]
+    # \dot(v) \forall{m}
     video_velocity, audio_velocity = predictor(
-        interpolant.video_state,
-        interpolant.audio_state,
+        video_state,
+        audio_state,
         interpolant.time,
         interpolant.time,
         context_video,
@@ -61,9 +82,19 @@ def flow_matching_loss(
     )
 
     # super easy MSE
-    video_loss = torch.mean((video_velocity - interpolant.video_velocity).square())
-    audio_loss = torch.mean((audio_velocity - interpolant.audio_velocity).square())
-    return video_loss + audio_loss
+    if modality_presence is not None:
+        video_error = reduce(
+            (video_velocity - interpolant.video_velocity).square(), "batch time patch feature -> batch", "mean"
+        )
+        audio_error = reduce(
+            (audio_velocity - interpolant.audio_velocity).square(), "batch time feature -> batch", "mean"
+        )
+        return (video_error * modality_presence[:, 0]).sum() / modality_presence[:, 0].sum().clamp_min(1) + (
+            audio_error * modality_presence[:, 1]
+        ).sum() / modality_presence[:, 1].sum().clamp_min(1)
+    return functional.mse_loss(video_velocity, interpolant.video_velocity) + functional.mse_loss(
+        audio_velocity, interpolant.audio_velocity
+    )
 
 
 @jaxtyped(typechecker=beartype)
@@ -83,7 +114,7 @@ def slim_lsd_loss(
     @param predictor: z_t predictor (DiTDH)which is our actual "world model" end state. this is supposed to do latent rollouts
     @param video_latents: float tensor representing the outputs of passing video through encoder. shape batch x timesteps x patch x video_feature (or feature, like we call it later)
     @param audio_latents float tensor representing results of passing waveform through audio encoder of shape batch x timesteps x audio_features
-    @param context_steps: int. meant for a "window", or cutoff for how much ctx to provide. Will need to find happy medium for this and action conditioning. 
+    @param context_steps: int. meant for a "window", or cutoff for how much ctx to provide. Will need to find happy medium for this and action conditioning.
     @param maximum_time_gap: how much the space between (u,t) can be in the SI since there is a chance the distribution becomes non-periodic or looses concavity
     """
     context_video = video_latents[:, :context_steps].detach()
@@ -152,15 +183,3 @@ def slim_lsd_loss(
     video_residual = tangent_video - teacher_video
     audio_residual = tangent_audio - teacher_audio
     return torch.mean(video_residual.square()) + torch.mean(audio_residual.square())
-
-
-@jaxtyped(typechecker=beartype)
-def latent_prediction_errors(
-    predicted_video: Float[Tensor, "batch time patch video_feature"],
-    predicted_audio: Float[Tensor, "batch time audio_feature"],
-    target_video: Float[Tensor, "batch time patch video_feature"],
-    target_audio: Float[Tensor, "batch time audio_feature"],
-) -> tuple[Float[Tensor, ""], Float[Tensor, ""], Float[Tensor, ""]]:
-    video_error = torch.mean((predicted_video - target_video).square())
-    audio_error = torch.mean((predicted_audio - target_audio).square())
-    return video_error + audio_error, video_error, audio_error
