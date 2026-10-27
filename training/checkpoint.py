@@ -1,9 +1,7 @@
 from pathlib import Path
 from typing import cast
-
 import torch
 from omegaconf import DictConfig, OmegaConf
-
 from training.pretraining.models import build_pretraining_models
 from training.pretraining.types import PretrainingModels
 from training.types import Checkpoint, ModelModules

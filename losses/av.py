@@ -1,12 +1,10 @@
 import torch
 from beartype import beartype
-from einops import reduce
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
-from torch.nn import functional
 from torch.nn.attention import SDPBackend, sdpa_kernel
-
 from architecture.av_model import AudioVisualFlowPredictor
+from losses.flow import flow_matching_terms
 from transport.flow import AudioVisualFlowTransport
 from transport.solvers import flow_map_jump
 
@@ -21,6 +19,7 @@ def flow_matching_loss(
     actions: Float[Tensor, "batch target_time action"] | None,
     modality_presence: Float[Tensor, "batch 2"] | None = None,
     context_presence: Float[Tensor, "batch 2"] | None = None,
+    context_actions: Float[Tensor, "batch context_time action"] | None = None,
 ) -> Float[Tensor, ""]:
     """
     Follows the Lipman, et. al formulation of flow matching. However, the comp graph is slightly different
@@ -44,57 +43,17 @@ def flow_matching_loss(
     Returns:
         Float tensor with 1 entry, representing loss. video loss + audio loss
     """
-    # ctx detach for rhs of flow matching
-    context_video = video_latents[:, :context_steps].detach()
-    context_audio = audio_latents[:, :context_steps].detach()
-
-    # sg for LSD
-    target_video = video_latents[:, context_steps:].detach()
-    target_audio = audio_latents[:, context_steps:].detach()
-
-    # (s,t)
-    interpolant = transport.sample_interpolant(target_video, target_audio)
-    video_state = interpolant.video_state
-    audio_state = interpolant.audio_state
-    if modality_presence is not None:
-        if not torch.all((modality_presence == 0) | (modality_presence == 1)) or not torch.all(
-            modality_presence.sum(-1) > 0
-        ):
-            raise ValueError("Every example must contain at least one declared observed modality")
-        video_mask = modality_presence[:, 0, None, None, None]
-        audio_mask = modality_presence[:, 1, None, None]
-        context_video = context_video * video_mask
-        context_audio = context_audio * audio_mask
-        video_state = video_state * video_mask
-        audio_state = audio_state * audio_mask
-    if context_presence is not None:
-        context_video = context_video * context_presence[:, 0, None, None, None]
-        context_audio = context_audio * context_presence[:, 1, None, None]
-    # \dot(v) \forall{m}
-    video_velocity, audio_velocity = predictor(
-        video_state,
-        audio_state,
-        interpolant.time,
-        interpolant.time,
-        context_video,
-        context_audio,
+    return flow_matching_terms(
+        transport,
+        predictor,
+        video_latents,
+        audio_latents,
+        context_steps,
         actions,
-    )
-
-    # super easy MSE
-    if modality_presence is not None:
-        video_error = reduce(
-            (video_velocity - interpolant.video_velocity).square(), "batch time patch feature -> batch", "mean"
-        )
-        audio_error = reduce(
-            (audio_velocity - interpolant.audio_velocity).square(), "batch time feature -> batch", "mean"
-        )
-        return (video_error * modality_presence[:, 0]).sum() / modality_presence[:, 0].sum().clamp_min(1) + (
-            audio_error * modality_presence[:, 1]
-        ).sum() / modality_presence[:, 1].sum().clamp_min(1)
-    return functional.mse_loss(video_velocity, interpolant.video_velocity) + functional.mse_loss(
-        audio_velocity, interpolant.audio_velocity
-    )
+        context_actions=context_actions,
+        modality_presence=modality_presence,
+        context_presence=context_presence,
+    ).total
 
 
 @jaxtyped(typechecker=beartype)

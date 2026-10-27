@@ -1,5 +1,4 @@
 import math
-
 import torch
 from beartype import beartype
 from einops import einsum, rearrange

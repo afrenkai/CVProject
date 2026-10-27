@@ -3,7 +3,6 @@ from beartype import beartype
 from einops import rearrange
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor, nn
-
 from architecture.pretraining.kda import KimiDeltaAttention
 from architecture.pretraining.transformers import (
     LinearAttention,

@@ -1,14 +1,21 @@
 from dataclasses import dataclass
 from typing import Literal
-
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     NonNegativeFloat,
     PositiveFloat,
+    PositiveInt,
 )
 from torch import Tensor
+from configs.types import FrozenModel
+
+
+class ForecastConfig(FrozenModel):
+    n_futures: PositiveInt = 8
+    integration_steps: Literal[16] = 16
+    grid_shift: Literal[4.0] = 4.0
 
 
 class TimeDistributionConfig(BaseModel):

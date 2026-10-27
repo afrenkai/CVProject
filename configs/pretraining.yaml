@@ -1,0 +1,46 @@
+defaults:
+  - hydra_defaults
+  - data: staged_corpus
+  - backbones@encoder: frozen_av
+  - world_model: turing_pretraining
+  - transport: pretraining
+  - _self_
+
+_target_: training.pretraining.configuration.PretrainingConfig
+_convert_: all
+output: /path/to/output
+windows:
+  train: /path/to/train/windows.yaml
+  validation: /path/to/validation/windows.yaml
+normalization:
+  latents: /path/to/normalizer.pt
+  actions: /path/to/action_normalizer.yaml
+loss:
+  video_weight: 1.0
+  audio_weight: 1.0
+  temporal_weight: 0.0
+schedule:
+  checkpoint_steps: 1000
+  validation_steps: 2000
+  validation_blocks_training: false
+  n_futures: 8
+  integration_steps: 16
+  grid_shift: 4.0
+  validation_shard_windows: 256
+  validation_world_size: 2
+trainer:
+  maximum_steps: 156145
+  batch_size: 1
+  accumulation_steps: 1
+  learning_rate: 0.0002
+  workers: 2
+  logging_steps: 10
+  seed: 67
+  activation_checkpointing: true
+  raw_read_attempts: 64
+runtime:
+  resume: null
+  pause_step: null
+  stop_file: ${output}/stop
+  deadline_epoch: null
+  graceful_stop_margin_seconds: 600

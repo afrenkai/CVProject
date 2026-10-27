@@ -1,11 +1,9 @@
 import json
 from collections.abc import Callable, Sequence
-
 import torch
 from beartype import beartype
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
-
 from architecture.av_model import AudioVisualFlowPredictor
 from architecture.pretraining.audio.audio_decoder import CausalAudioDecoder
 from architecture.pretraining.audio.encoder import HybridAudioEncoder

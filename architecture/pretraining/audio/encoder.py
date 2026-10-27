@@ -5,7 +5,7 @@ from beartype import beartype
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
 from torch import Tensor, nn
-from torch.nn import functional
+from torch.nn import functional as F
 from architecture.pretraining.kda import KimiDeltaAttention
 
 
@@ -19,29 +19,20 @@ class CausalLocalAttention(nn.Module):
 
 
     """
+
     def __init__(self, hidden_dimension: int, heads: int, window_steps: int) -> None:
         super().__init__()
         if hidden_dimension % heads or window_steps <= 0:
-            raise ValueError(
-                "Attention requires divisible dimensions and a positive window"
-            )
+            raise ValueError("Attention requires divisible dimensions and a positive window")
         self.heads = heads
         self.window_steps = window_steps
-        self.query_projection = nn.Linear(
-            hidden_dimension, hidden_dimension, bias=False
-        )
+        self.query_projection = nn.Linear(hidden_dimension, hidden_dimension, bias=False)
         self.key_projection = nn.Linear(hidden_dimension, hidden_dimension, bias=False)
-        self.value_projection = nn.Linear(
-            hidden_dimension, hidden_dimension, bias=False
-        )
-        self.output_projection = nn.Linear(
-            hidden_dimension, hidden_dimension, bias=False
-        )
+        self.value_projection = nn.Linear(hidden_dimension, hidden_dimension, bias=False)
+        self.output_projection = nn.Linear(hidden_dimension, hidden_dimension, bias=False)
 
     @jaxtyped(typechecker=beartype)
-    def forward(
-        self, tokens: Float[Tensor, "batch time hidden"]
-    ) -> Float[Tensor, "batch time hidden"]:
+    def forward(self, tokens: Float[Tensor, "batch time hidden"]) -> Float[Tensor, "batch time hidden"]:
         queries = rearrange(
             self.query_projection(tokens),
             "batch time (head channel) -> batch head time channel",
@@ -63,7 +54,7 @@ class CausalLocalAttention(nn.Module):
             distance >= 0,
             distance < self.window_steps,
         )
-        attended = functional.scaled_dot_product_attention(
+        attended = F.scaled_dot_product_attention(
             queries,
             keys,
             values,
@@ -100,11 +91,11 @@ class HybridAudioEncoder(nn.Module):
 
         @param input_channels: int how many channels which are for mlp/transformer in
         @param h_dim: int dim of conv output for downsampling waveform
-        @param latent_dim: int what dim/size of emb space 
+        @param latent_dim: int what dim/size of emb space
         @param downsample_strides: seq of int representing strides of conv for each. need to do a len check
         @param block_pattern: seq(str) like "K","K","K","A","K","K","K","A" for the pattern of blocks of kda vs attn
         @param kda_heads: num_heads for kda
-        @param kda_head_dimension: 
+        @param kda_head_dimension:
         @param kda_chunk_size: size of chunk to perform Linear ops on for KDA
         @param kda_minimum_log_decay: smallest amount to log-decay the logits of kda
         @param attention_heads: how many heads to use in softmax attn
@@ -157,12 +148,8 @@ class HybridAudioEncoder(nn.Module):
             else:
                 raise ValueError(f"Unknown audio mixer: {block_kind}")
         self.mixers = nn.ModuleList(mixers)
-        self.mixer_norms = nn.ModuleList(
-            nn.RMSNorm(hidden_dimension) for block_kind in block_pattern
-        )
-        self.feed_forward_norms = nn.ModuleList(
-            nn.RMSNorm(hidden_dimension) for block_kind in block_pattern
-        )
+        self.mixer_norms = nn.ModuleList(nn.RMSNorm(hidden_dimension) for block_kind in block_pattern)
+        self.feed_forward_norms = nn.ModuleList(nn.RMSNorm(hidden_dimension) for block_kind in block_pattern)
         self.feed_forwards = nn.ModuleList(
             nn.Sequential(
                 nn.Linear(hidden_dimension, hidden_dimension * 4),
@@ -181,25 +168,21 @@ class HybridAudioEncoder(nn.Module):
         initial_states: list[Tensor] | None = None,
     ) -> tuple[Float[Tensor, "batch time latent"], list[Tensor]]:
         """
-        takes in waveform (tensor) with some initial states and runs fwd pass. 
+        takes in waveform (tensor) with some initial states and runs fwd pass.
         @param waveform: float tensor of shape bxcxsample (or audio_sample, depending on which file you look at)
-        @param initial_states: list of tensors for initializing the kda state matrix. can be optional. 
-        
+        @param initial_states: list of tensors for initializing the kda state matrix. can be optional.
+
         Returns:
             latent representation which is 3 tensor of b x t x l
             l is inherited from the model class, same as t
             also returns the state matrix for next states
         """
         if waveform.shape[-1] % self.total_stride:
-            raise ValueError(
-                f"Audio samples must be divisible by encoder stride {self.total_stride}"
-            )
+            raise ValueError(f"Audio samples must be divisible by encoder stride {self.total_stride}")
         if initial_states is not None and len(initial_states) != self.kda_block_count:
             raise ValueError(f"Expected {self.kda_block_count} KDA states")
 
-        tokens = rearrange(
-            self.stem(waveform), "batch hidden time -> batch time hidden"
-        )
+        tokens = rearrange(self.stem(waveform), "batch hidden time -> batch time hidden")
         next_states: list[Tensor] = []
         # I am not sure if there is a "smarter" way to do iteration through this than a counter and enumerate. maybe something with zip?
         # for now, counter = 0, counter+=1 if valid idx else throw err
@@ -207,9 +190,7 @@ class HybridAudioEncoder(nn.Module):
         for mixer_index, mixer in enumerate(self.mixers):
             normalized = self.mixer_norms[mixer_index](tokens)
             if isinstance(mixer, KimiDeltaAttention):
-                initial_state = (
-                    None if initial_states is None else initial_states[state_index]
-                )
+                initial_state = None if initial_states is None else initial_states[state_index]
                 mixed, next_state = mixer(normalized, initial_state)
                 next_states.append(next_state)
                 state_index += 1
@@ -218,7 +199,5 @@ class HybridAudioEncoder(nn.Module):
             else:
                 raise TypeError(f"Unsupported mixer type: {type(mixer).__name__}")
             tokens = tokens + mixed
-            tokens = tokens + self.feed_forwards[mixer_index](
-                self.feed_forward_norms[mixer_index](tokens)
-            )
+            tokens = tokens + self.feed_forwards[mixer_index](self.feed_forward_norms[mixer_index](tokens))
         return self.output_projection(tokens), next_states

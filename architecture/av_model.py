@@ -4,7 +4,7 @@ from diffusers.models.embeddings import GaussianFourierProjection
 from einops import rearrange, repeat
 from jaxtyping import Float, jaxtyped
 from torch import Tensor, nn
-
+from torch.utils.checkpoint import checkpoint
 from architecture.pretraining.ddt import AudioVisualDDTHead
 from architecture.pretraining.history_mixer import AudioVisualHistoryMixer
 from architecture.pretraining.tokens import AudioVisualTokenProjector
@@ -12,7 +12,7 @@ from architecture.pretraining.transformers import (
     AdaptiveAttentionBlock,
     sinusoidal_timestep_embedding,
 )
-from architecture.pretraining.types import HybridHistoryConfig
+from architecture.pretraining.types import AudioTokenConfig, HybridHistoryConfig
 
 
 class AudioVisualFlowPredictor(nn.Module):
@@ -33,9 +33,12 @@ class AudioVisualFlowPredictor(nn.Module):
         hybrid_history: HybridHistoryConfig | None = None,
         noise_time_embedding: str = "sinusoidal",
         spatial_grid: tuple[int, int] | None = None,
+        audio_tokens: AudioTokenConfig | None = None,
     ) -> None:
         super().__init__()
+        self.activation_checkpointing = False
         self.backbone_hidden_dimension = backbone_hidden_dimension
+        self.audio_tokens = audio_tokens or AudioTokenConfig()
         if noise_time_embedding not in {"sinusoidal", "gaussian_fourier"}:
             raise ValueError("Unknown noise time embedding")
         self.noise_time_embedding = noise_time_embedding
@@ -55,12 +58,14 @@ class AudioVisualFlowPredictor(nn.Module):
             audio_dimension,
             backbone_hidden_dimension,
             spatial_grid,
+            self.audio_tokens,
         )
         self.backbone_context_tokens = AudioVisualTokenProjector(
             video_dimension,
             audio_dimension,
             backbone_hidden_dimension,
             spatial_grid,
+            self.audio_tokens,
         )
         self.backbone_action_projection = nn.Linear(
             action_dimension,
@@ -119,6 +124,7 @@ class AudioVisualFlowPredictor(nn.Module):
             mlp_ratio,
             dropout,
             spatial_grid,
+            self.audio_tokens,
         )
 
     @jaxtyped(typechecker=beartype)
@@ -205,7 +211,7 @@ class AudioVisualFlowPredictor(nn.Module):
             self.null_action.shape[0],
         ):
             raise ValueError("Previous executed actions must align with observation history")
-        tokens_per_step = video_patches + 1
+        tokens_per_step = video_patches + self.audio_tokens.tokens_per_step
         frame_indices = repeat(
             torch.arange(target_steps, device=noisy_video.device),
             "time -> (time token)",
@@ -244,7 +250,10 @@ class AudioVisualFlowPredictor(nn.Module):
             )
             global_condition = rearrange(condition, "batch hidden -> batch 1 hidden")
             for block in self.backbone_blocks:
-                targets = block(targets, context, global_condition, attention_mask)
+                if self.activation_checkpointing and torch.is_grad_enabled():
+                    targets = checkpoint(block, targets, context, global_condition, attention_mask, use_reentrant=False)
+                else:
+                    targets = block(targets, context, global_condition, attention_mask)
 
         return self.diffusion_head(
             noisy_video,

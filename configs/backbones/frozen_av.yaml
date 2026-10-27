@@ -1,0 +1,15 @@
+_target_: architecture.pretraining.encoder_types.FrozenEncoderConfig
+video_model: vit_large_patch16_dinov3.lvd1689m
+video_cache_directory: null
+video_layers: [6, 12, 18, 24]
+video_feature_dimension: 1024
+image_size: ${data.image_size}
+video_rate: ${data.video_rate}
+sample_rate: ${data.sample_rate}
+video_frames_per_step: 3
+context_frames: ${data.context_frames}
+audio_model_directory: /path/to/dasheng
+audio_feature_dimension: 1536
+audio_native_frame_rate: 25
+audio_frame_repeat: 2
+audio_tokens_per_step: 5
