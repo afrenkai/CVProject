@@ -1,0 +1,14 @@
+defaults:
+  - hydra_defaults
+  - _self_
+
+_target_: evaluation.types.ValidationConfig
+_convert_: all
+request: /path/to/request.yaml
+operation: validate
+shard: 0
+workers: 0
+runtime:
+  stop_file: null
+  deadline_epoch: null
+  graceful_stop_margin_seconds: 600

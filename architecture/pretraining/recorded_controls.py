@@ -2,7 +2,6 @@ import torch
 from beartype import beartype
 from jaxtyping import Float, jaxtyped
 from torch import Tensor, nn
-
 from train_datasets.control_types import ControlEncoderConfig
 
 

@@ -1,147 +1,123 @@
-import json
+import os
+import time
+from datetime import UTC, datetime
 from pathlib import Path
-
 import hydra
 import torch
-from omegaconf import DictConfig
-
-from train_datasets.media import (
-    load_av_clip,
-    load_media_manifest,
-    validate_pretraining_records,
+import yaml
+from hydra.utils import instantiate
+from omegaconf import DictConfig, OmegaConf
+from transformers import Trainer, set_seed
+from architecture.pretraining.joint_encoder import JointEncoder
+from train_datasets.online_corpus import OnlineCorpusWindows
+from train_datasets.records import read_windows
+from training.pretraining.allocation import (
+    AllocationProgress,
+    allocation_deadline,
 )
-from training.checkpoint import save_pretraining_checkpoint
-from training.pretraining.models import build_pretraining_models
-from training.pretraining.normalization import fit_audio_visual_normalizer
-from training.pretraining.stages import (
-    pretrain_audio_encoder,
-    pretrain_latent_world_model,
-    pretrain_video_decoder,
+from training.pretraining.configuration import PretrainingConfig
+from training.pretraining.frozen import build_online_objective
+from training.pretraining.reporting import PretrainingMetrics
+from training.pretraining.schedule import (
+    ValidationRequests,
+    native_checkpoint_step,
+    pretraining_arguments,
 )
-from training.runtime import cuda_device
-from transport.flow import AudioVisualFlowTransport
 
 
-def summarize_losses(losses: list[float]) -> dict[str, float]:
-    if not losses:
-        raise ValueError("Cannot summarize an empty loss sequence")
-    return {
-        "initial": losses[0],
-        "final": losses[-1],
-        "minimum": min(losses),
-    }
+def resume_step(config: PretrainingConfig, world_size: int) -> int:
+    checkpoint = config.runtime.resume
+    if checkpoint is None:
+        assert not list(config.output.glob("checkpoint-*")), "Choose an explicit native checkpoint to resume"
+        return 0
+    assert checkpoint.resolve().parent == config.output.resolve()
+    return native_checkpoint_step(checkpoint, world_size)
 
 
-@hydra.main(config_path=None, version_base=None)
-def main(config: DictConfig) -> None:
-    device = cuda_device(config.runtime.seed)
-    transport = AudioVisualFlowTransport.from_omegaconf(config.transport)
-    total_steps = config.data.context_steps + config.data.target_steps
-    records = load_media_manifest(Path(config.data.manifest), "train")
-    excluded = list(config.data.excluded_datasets)
-    validate_pretraining_records(records, excluded)
-    av_clips = [
-        load_av_clip(
-            record,
-            config.data.frames_per_second,
-            total_steps,
-            config.data.image_size,
-            config.audio_encoder.sample_rate,
-            config.audio_encoder.input_channels,
-        )
-        for record in records
-    ]
-    print(
-        json.dumps(
-            {
-                "training_clips": len(records),
-                "training_domains": sorted({record.dataset for record in records}),
-                "excluded_games": sorted(excluded),
-            }
+def finish_allocation(
+    trainer: Trainer, config: PretrainingConfig, phase: Path, start: int, training_seconds: float
+) -> None:
+    trainer.save_state()
+    trainer.accelerator.wait_for_everyone()
+    end = trainer.state.global_step
+    assert start < end <= (config.runtime.pause_step or config.trainer.maximum_steps)
+    checkpoint = config.output / f"checkpoint-{end}"
+    assert native_checkpoint_step(checkpoint, trainer.args.world_size) == end
+    if trainer.is_world_process_zero():
+        report = {
+            "completed": True,
+            "global_start": start,
+            "global_end": end,
+            "global_step_cap": config.trainer.maximum_steps,
+            "optimizer_updates": end - start,
+            "training_seconds": training_seconds,
+            "seconds_per_optimizer_update": training_seconds / (end - start),
+            "checkpoint": str(checkpoint),
+            "checkpoint_retention": "all",
+            "validation_due": end % config.schedule.validation_steps == 0,
+            "validation_blocks_training": config.schedule.validation_blocks_training,
+            "normalizer": str(config.normalization.latents),
+            "test_cs_r6_used": False,
+        }
+        (phase / "completed.yaml").write_text(yaml.safe_dump(report, sort_keys=False))
+        print(yaml.safe_dump(report, sort_keys=False), flush=True)
+    trainer.accelerator.wait_for_everyone()
+
+
+def run_pretraining(config: PretrainingConfig, source_config: DictConfig) -> None:
+    set_seed(config.trainer.seed)
+    torch.set_float32_matmul_precision("highest")
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
+    arguments = pretraining_arguments(config)
+    device = arguments.device
+    assert device.type == "cuda" and torch.cuda.is_bf16_supported()
+    assert device.index == int(os.environ.get("LOCAL_RANK", "0"))
+    assert arguments.world_size == torch.cuda.device_count()
+    assert config.data.context_frames == config.encoder.context_frames
+    deadline = allocation_deadline(config.runtime)
+    assert deadline is None or time.time() < deadline
+    assert config.runtime.stop_file is None or not config.runtime.stop_file.exists()
+    start = resume_step(config, arguments.world_size)
+    pause = config.runtime.pause_step or config.trainer.maximum_steps
+    assert start < pause <= config.trainer.maximum_steps
+    training = read_windows(config.windows.train, "train")
+    validation = read_windows(config.windows.validation, "validation")
+    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S")
+    allocation_id = os.environ.get("SLURM_JOB_ID", os.environ.get("TORCHELASTIC_RUN_ID", f"local_{timestamp}"))
+    phase = config.output / "allocations" / allocation_id
+    phase.mkdir(parents=True, exist_ok=True)
+    assert not (phase / "completed.yaml").exists()
+    resolved = phase / "config.yaml"
+    if arguments.process_index == 0:
+        OmegaConf.save(source_config, resolved, resolve=True)
+    encoder = JointEncoder(config.encoder, device)
+    objective = build_online_objective(config, encoder.encode, device)
+    trainer = Trainer(
+        model=objective,
+        args=arguments,
+        train_dataset=OnlineCorpusWindows(
+            training, config.data, config.output / "input_events", config.trainer.seed, config.trainer.raw_read_attempts
         ),
-        flush=True,
+        callbacks=[
+            PretrainingMetrics(phase),
+            ValidationRequests(
+                config.schedule, resolved.resolve(), config.output / "validation_requests", len(validation)
+            ),
+        ],
     )
+    trainer.add_callback(AllocationProgress(trainer.accelerator, start, pause, deadline, config.runtime.stop_file))
+    started = time.monotonic()
+    trainer.train(resume_from_checkpoint=None if config.runtime.resume is None else str(config.runtime.resume))
+    finish_allocation(trainer, config, phase, start, time.monotonic() - started)
+    trainer.accelerator.end_training()
 
-    models = build_pretraining_models(config, device)
 
-    waveforms = [clip.waveform[None].to(device) for clip in av_clips]
-    audio_losses = pretrain_audio_encoder(
-        models.audio_encoder,
-        models.audio_decoder,
-        waveforms,
-        config.audio_pretraining.iterations,
-        config.audio_pretraining.learning_rate,
-    )
-    models.audio_encoder.requires_grad_(False)
-    models.audio_encoder.eval()
-    if models.audio_encoder.total_stride * config.data.frames_per_second != config.audio_encoder.sample_rate:
-        raise ValueError("Causal audio tokens must align with the video frame rate")
-    raw_latent_examples: list[tuple[torch.Tensor, torch.Tensor]] = []
-    with torch.no_grad():
-        for clip in av_clips:
-            video_latents = models.video_encoder(clip.frames[None].to(device))
-            audio_latents = models.audio_encoder(clip.waveform[None].to(device))[0]
-            raw_latent_examples.append((video_latents, audio_latents))
-
-    video_examples = [
-        (
-            raw_latent_examples[example_index][0],
-            av_clips[example_index].frames[None].to(device),
-        )
-        for example_index in range(len(av_clips))
-    ]
-    video_decoder_losses = pretrain_video_decoder(
-        models.video_decoder,
-        video_examples,
-        config.video_decoder_pretraining.iterations,
-        config.video_decoder_pretraining.learning_rate,
-    )
-    models.normalizer = fit_audio_visual_normalizer(
-        raw_latent_examples,
-        config.normalization.minimum_standard_deviation,
-    ).to(device)
-    latent_examples = [
-        (
-            models.normalizer.normalize_video(video_latents),
-            models.normalizer.normalize_audio(audio_latents),
-        )
-        for video_latents, audio_latents in raw_latent_examples
-    ]
-
-    def save_world_checkpoint(iteration: int) -> None:
-        checkpoint_path = save_pretraining_checkpoint(Path(config.output.directory), models, config)
-        print(json.dumps({"world_step": iteration, "checkpoint": str(checkpoint_path)}), flush=True)
-
-    world_losses, slim_lsd_losses, final_code_ids = pretrain_latent_world_model(
-        transport,
-        models.predictor,
-        models.latent_action_model,
-        latent_examples,
-        config.data.context_steps,
-        config.world_pretraining.iterations,
-        config.world_pretraining.learning_rate,
-        config.latent_actions.commitment_weight,
-        config.slim_lsd.start_iteration,
-        config.slim_lsd.weight,
-        config.slim_lsd.maximum_time_gap,
-        save_world_checkpoint,
-        config.world_pretraining.checkpoint_interval,
-    )
-    checkpoint_path = save_pretraining_checkpoint(Path(config.output.directory), models, config)
-    print(
-        json.dumps(
-            {
-                "audio_visual_sources": [record.model_dump(mode="json") for record in records],
-                "audio_loss": summarize_losses(audio_losses),
-                "video_decoder_loss": summarize_losses(video_decoder_losses),
-                "world_loss": summarize_losses(world_losses),
-                "slim_lsd_loss": summarize_losses(slim_lsd_losses),
-                "latent_action_codes": final_code_ids[0].tolist(),
-                "checkpoint": str(checkpoint_path),
-            },
-            indent=4,
-        )
-    )
+@hydra.main(config_path="../../configs", config_name="pretraining", version_base=None)
+def main(config: DictConfig) -> None:
+    settings = instantiate(config)
+    assert isinstance(settings, PretrainingConfig)
+    run_pretraining(settings, config)
 
 
 if __name__ == "__main__":

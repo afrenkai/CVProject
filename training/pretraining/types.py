@@ -1,7 +1,5 @@
 from dataclasses import dataclass
-
 from torch import nn
-
 from architecture.av_model import AudioVisualFlowPredictor
 from architecture.pretraining.audio.audio_decoder import CausalAudioDecoder
 from architecture.pretraining.audio.encoder import HybridAudioEncoder

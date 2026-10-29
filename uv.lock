@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu'",
@@ -18,7 +18,8 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
@@ -45,7 +46,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
 ]
 conflicts = [[
     { package = "project", extra = "ampere" },
@@ -372,6 +374,32 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/9a/8e/82a0fe20a541c03148528be8cac2408564a6c9a0cc7e9171802bc1d26985/attrs-26.1.0.tar.gz", hash = "sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32", size = 952055, upload-time = "2026-03-19T14:22:25.026Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl", hash = "sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309", size = 67548, upload-time = "2026-03-19T14:22:23.645Z" },
+]
+
+[[package]]
+name = "av"
+version = "19.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/bc/a2a40e503250fe5d4174471911828f31658864eb69a8a7cb960c715e17b7/av-19.0.1.tar.gz", hash = "sha256:08674930eaf1af78a3ed8f93d3ba49383323b3a867e84349d9c399e36f7497da", size = 4274648, upload-time = "2026-10-03T01:48:28.575Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ec/2f/f4d219b2c72fea88bcbaea23de5b7f864ebecd348586fd2fe69f7f657147/av-19.0.1-cp312-abi3-macosx_11_0_x86_64.whl", hash = "sha256:2bd44ef4c09bb04aa6100d4c6191ddedaffef6af757ac55d5b4dc90915859299", size = 22625494, upload-time = "2026-10-03T01:47:21.866Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/75/db37bb43a12a317cc0c0b96ddabc7896f582503b377e0803d4d721969522/av-19.0.1-cp312-abi3-macosx_14_0_arm64.whl", hash = "sha256:29d85e4ee36bf8f475dad07d4f4417c07bba62535f6a7179429c357e0ca8fb0f", size = 18439188, upload-time = "2026-10-03T01:47:25.541Z" },
+    { url = "https://files.pythonhosted.org/packages/10/4b/61f138fcf21e7bb50655ed21dd7fdc7a296baf72ea3c7ad8e89cb00b69c1/av-19.0.1-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:437d4c0d5a7d771f2c3af84cd28e6aac6e173851116c60b53e81dbf1eebe4eab", size = 32676941, upload-time = "2026-10-03T01:47:29.237Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/97/5fb45934ac64e8afc2c6869a7dcb8cb2af1ddab09a725367548856cbb59f/av-19.0.1-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:1bea5b6134209305199bce7627ac3d33964de2cf2b09c77d08e7f67cf8bd4170", size = 34983451, upload-time = "2026-10-03T01:47:32.895Z" },
+    { url = "https://files.pythonhosted.org/packages/66/f2/6eee1b99ac492fa1965d6fd466ef8b644ca296b4f1dfa8c8225ab340b139/av-19.0.1-cp312-abi3-manylinux_2_31_armv7l.whl", hash = "sha256:1de938ec0134ad88f795dfe0a2dfc2d59e9ecea39a20158d37961279a3483612", size = 41660680, upload-time = "2026-10-03T01:47:36.903Z" },
+    { url = "https://files.pythonhosted.org/packages/11/be/e4ddd0197d02a3114402f3ffde541f6c4edecd24d670bea0da1eb6f15fb2/av-19.0.1-cp312-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:bcd0af218ecbeddbb1b0c56c4278043a3d97b87f3b8e33f6f92d452c744b1b08", size = 33748455, upload-time = "2026-10-03T01:47:40.541Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/41/b9af863f635f64abaf5eb734521306487fc79447f5d55d792339a81c8a4d/av-19.0.1-cp312-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:935a6b6386a6994964e324eb02af4dab01eedbcbbde23b4b21bf1dc59b004244", size = 36008899, upload-time = "2026-10-03T01:47:44.13Z" },
+    { url = "https://files.pythonhosted.org/packages/e6/dc/a87a5a5e3ac462734f9befd8bad1447301e5802d8c111e22bf708fba7af3/av-19.0.1-cp312-abi3-win_amd64.whl", hash = "sha256:906fc3db09288319a75ea23ffefb59961c7dbe0d1c074601507a89de7d8593d8", size = 28149519, upload-time = "2026-10-03T01:47:47.372Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/78/16864f1aa2c3ac5017f15132b85c6d3c74bb85caca8c45ce836ad30dfe20/av-19.0.1-cp312-abi3-win_arm64.whl", hash = "sha256:e9e1b0cae6cebd2adc2c5c6691fc890112f8f6c846b76a9135307617db1e32e9", size = 20706822, upload-time = "2026-10-03T01:47:50.72Z" },
+    { url = "https://files.pythonhosted.org/packages/78/4a/b5d7614856af72d7c18b926dda43bd227844b0b42d64e7c478b080f8d9c1/av-19.0.1-cp314-cp314t-macosx_11_0_x86_64.whl", hash = "sha256:3ef376ab828730f50b635e3541f305503adad713cb4c3eadb5ad0e4c6a6f4a72", size = 22909764, upload-time = "2026-10-03T01:47:54.032Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/c9/50b2dedd4314a0ba0d78d7a7a52f7b073bc3377e5152e51d9d5627c5bcf4/av-19.0.1-cp314-cp314t-macosx_14_0_arm64.whl", hash = "sha256:17f2e42a1c969c78c616fe58bc69641a9df404c1ac2f01b50c1ddc22e5c31f69", size = 18718945, upload-time = "2026-10-03T01:47:58.396Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/a5/eb2b6aadbda16ee676c76e43012709f0cdfe09c35bc9ad4ffb5099827e72/av-19.0.1-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:aafd294abd0e5c23e6c813b10fb4792cf1dd1002c1aead0292d195cda2ca154e", size = 36470355, upload-time = "2026-10-03T01:48:01.686Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/f0/25e7d21cc29e949118bdac6efe0ef5c5020fc4273a3ea237989728ebe816/av-19.0.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:400ba5234865dc370c442658efff0672c64dcad2de26a2a7c900abf16ffd9f68", size = 38457564, upload-time = "2026-10-03T01:48:05.61Z" },
+    { url = "https://files.pythonhosted.org/packages/3f/09/77fec7c8de49fb815d55de1dfac21b39fb9e6915cbd8dcd945538ebb6f44/av-19.0.1-cp314-cp314t-manylinux_2_31_armv7l.whl", hash = "sha256:5e527b9d2d23c096d2b488e19a40ceba3654ea84a3cecee1c1b46c70ceaceae2", size = 43462245, upload-time = "2026-10-03T01:48:10.674Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/1d/bb0281ada4203c5d85f7e8b045de2cadc89c3b5d0ed5705298f7a9288b1f/av-19.0.1-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:79136e62d4bc93db81fb63d6dd0060e86259426c071ca5157b1abe8c815c40b7", size = 37339005, upload-time = "2026-10-03T01:48:14.805Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/84/19a9d37d7546a3879d759a8957b2513a029cafb81f60218c496b1ce9d5a8/av-19.0.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:330f91c704aa822b96d9aa21382c0eb41a68531d388078d724d334faa460cbcc", size = 39466754, upload-time = "2026-10-03T01:48:18.988Z" },
+    { url = "https://files.pythonhosted.org/packages/30/c4/39d4e2b778f1e86672671e25c3fd38e8d59d59b6f65c5cd13d7fae3d88a3/av-19.0.1-cp314-cp314t-win_amd64.whl", hash = "sha256:8289295bfd2a438f2cf83c3ab426964055e441f1500410a842e7a767bdc8e51e", size = 29063526, upload-time = "2026-10-03T01:48:22.724Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/7d/a20ff44c1445c09a93985418f6997e5823635848e955a7953339636a9829/av-19.0.1-cp314-cp314t-win_arm64.whl", hash = "sha256:e1f70b1bda35588aff5fc526500376afe143e33cfce5d7e30d368170c38717db", size = 21915698, upload-time = "2026-10-03T01:48:26.386Z" },
 ]
 
 [[package]]
@@ -1208,7 +1236,7 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
@@ -1227,10 +1255,10 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'emscripten' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.13' and sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.13' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
 ]
 dependencies = [
-    { name = "cuda-pathfinder", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (sys_platform != 'linux' and extra == 'extra-7-project-ampere') or (sys_platform == 'emscripten' and extra == 'extra-7-project-ampere') or (sys_platform == 'win32' and extra == 'extra-7-project-ampere') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or extra == 'extra-7-project-ampere13' or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
+    { name = "cuda-pathfinder", marker = "(sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (sys_platform != 'linux' and extra == 'extra-7-project-ampere') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere') or (sys_platform == 'emscripten' and extra == 'extra-7-project-ampere') or (sys_platform == 'win32' and extra == 'extra-7-project-ampere') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or extra == 'extra-7-project-ampere13' or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/65/11/1293429c1c3a3e19b551275e65efddd122a905bbe7e368816a59f3ef2a41/cuda_bindings-13.4.3-cp312-cp312-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:bfbd3f7d4ac04dd41dc49121b9e408c8283992f47124c2290ecb79bbbadcca8e", size = 6488226, upload-time = "2026-09-23T02:22:00.578Z" },
@@ -1383,8 +1411,8 @@ name = "cuda-toolkit"
 version = "13.0.3.0"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/c7/a79086a62c98befcdb8349656c6f114e2db3b8b2422f6e25c97a7f2a9a3c/cuda_toolkit-13.0.3.0-py2.py3-none-any.whl", hash = "sha256:d693caaa261214ddd7dbb60d68e71cbed884e68c2be7509778f3051da0b91c3f", size = 2512, upload-time = "2026-04-14T00:50:08.173Z" },
@@ -2367,25 +2395,9 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/be/ea/416657fb1cf0cb93c2564922a94f8bd361ae3d73a591c4b84e257a2305d8/imagecodecs-2026.8.16-cp312-abi3-macosx_11_0_arm64.whl", hash = "sha256:53f4b7d70a5554f8d5f6f09746e5e9569ce4932b12e6997d805b81c377621fed", size = 12928116, upload-time = "2026-08-15T16:06:08.041Z" },
     { url = "https://files.pythonhosted.org/packages/21/cf/398d49c8b616bc997b58749812dab5719e68165caa0275d5a1e3e310a1ba/imagecodecs-2026.8.16-cp312-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:908fa48740d52acbaea200d422e2267623122a1987fc85e898c77b2bb02d3e00", size = 28094370, upload-time = "2026-08-15T16:06:11.642Z" },
     { url = "https://files.pythonhosted.org/packages/67/1b/0771f9b93a8f43b1e98a20d33fab02a6eceb8bb75c32764b5d47ee4db36f/imagecodecs-2026.8.16-cp312-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:c1068e0db9bc09cbd32510e543caed50f231096aecbb4c9cf7bcfbd2ffc53a50", size = 28080673, upload-time = "2026-08-15T16:06:15.463Z" },
-    { url = "https://files.pythonhosted.org/packages/66/57/876bf8245b672b1fc901b65b9d1d0a37c60f7ed36e6ae8815c4af49e2779/imagecodecs-2026.8.16-cp312-abi3-pyemscripten_2025_0_wasm32.whl", hash = "sha256:59e16b27641bd08b5162de01a8bc382cd32a5e448cb5c2f4a1b252ea96d37fed", size = 2280993, upload-time = "2026-08-15T16:06:17.576Z" },
-    { url = "https://files.pythonhosted.org/packages/ac/a2/b0ea5fee8c2c4f3cf68bb2243f640ea087885598aedb2f98bde0298f73ec/imagecodecs-2026.8.16-cp312-abi3-pyemscripten_2026_0_wasm32.whl", hash = "sha256:fcb28f8e552f26c195710bddbf7e8685e789ee9309725df4a275df16d7a136bc", size = 2273594, upload-time = "2026-08-15T16:06:19.082Z" },
     { url = "https://files.pythonhosted.org/packages/cf/b7/cae1b739d368bc17df669f43793b5e6a7d1f56e19438eaa41add21611919/imagecodecs-2026.8.16-cp312-abi3-win32.whl", hash = "sha256:82bc27758f25d181eb4fd4fd8997b3eb07118dc673dee93aa3e64df8485e89bc", size = 16562229, upload-time = "2026-08-15T16:06:21.677Z" },
     { url = "https://files.pythonhosted.org/packages/3e/da/d168a0e706103db3b82bde1b088d493e84a20da26f58be42bb2f1fca87e7/imagecodecs-2026.8.16-cp312-abi3-win_amd64.whl", hash = "sha256:6444a421272665ebd0116b54ad96347b86b4a5e21b59ed184487145cd3937f4b", size = 21271669, upload-time = "2026-08-15T16:06:25.021Z" },
     { url = "https://files.pythonhosted.org/packages/99/0b/31642c8c404d436496b76c7cf6df220617f2e1ae36ae25e6809aa0a36a10/imagecodecs-2026.8.16-cp312-abi3-win_arm64.whl", hash = "sha256:b05e3ae5fa190c9722a0865cc06a3efccf27b025cbeeb8e9fd6beae0de5ce1d2", size = 16870662, upload-time = "2026-08-15T16:06:28.055Z" },
-    { url = "https://files.pythonhosted.org/packages/52/f4/cacc8eca9b6349e75b3fd01148d4b5e3cccae5b4873643fd821d53764b11/imagecodecs-2026.8.16-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:4af18875b6f9b9bed35b9905e2e00ef8e303981846e112e835583f52094581fe", size = 15419161, upload-time = "2026-08-15T16:06:31.213Z" },
-    { url = "https://files.pythonhosted.org/packages/1f/15/93aa21ba529f61a988c2358e34ecb7f0a0a57f6735839bdb4902b285a86a/imagecodecs-2026.8.16-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:1849ac820ca3073dfa9fe799d267b77cdf0f5118be4841274acf4c43e0608d3f", size = 13393687, upload-time = "2026-08-15T16:06:34.095Z" },
-    { url = "https://files.pythonhosted.org/packages/77/bf/2963c729c8126821f90dfcfc8a22cf50d66ae82f5e9228e1261919cab020/imagecodecs-2026.8.16-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:8778982a9bb2d286793799d3e67715cc74479ff483572523e26316db10650e59", size = 33032087, upload-time = "2026-08-15T16:06:38.302Z" },
-    { url = "https://files.pythonhosted.org/packages/6d/e3/92588bf8bddcf642fa4370adb6ad2aad92bed92c6f3b5a02f3c1c00f0199/imagecodecs-2026.8.16-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:8afd5d0802ee1ebcbdb809fe1758f8ca2b1900eabb7d737453297c7f218b4f6f", size = 32438276, upload-time = "2026-08-15T16:06:42.633Z" },
-    { url = "https://files.pythonhosted.org/packages/1d/60/3d29f474719688346ec95dd4a7b3bcd799e31f4c7d15617f9c6dafa811cb/imagecodecs-2026.8.16-cp314-cp314t-win32.whl", hash = "sha256:6265622835428c21dc891261993f59c24f1e4255502c90aa36778996e91315f9", size = 17304429, upload-time = "2026-08-15T16:06:46.007Z" },
-    { url = "https://files.pythonhosted.org/packages/74/95/90e45470ed4f0d8ca3e90174db4352bd40961315fc3ecffc15f0aed80683/imagecodecs-2026.8.16-cp314-cp314t-win_amd64.whl", hash = "sha256:a04b7f31fe4ec6416d2036b28b1df2f444ae1aa5163394059565e14677c9fc48", size = 22106210, upload-time = "2026-08-15T16:06:49.59Z" },
-    { url = "https://files.pythonhosted.org/packages/78/1c/9ba4d8ede7829cabf7dd56ba806fe648e90dfd5a07d83f8afc28be034d79/imagecodecs-2026.8.16-cp314-cp314t-win_arm64.whl", hash = "sha256:fa7b9fd436b4e1a066fc71d42f506e028d2256f96950c03b1798e1fb257605b3", size = 17666610, upload-time = "2026-08-15T16:06:52.686Z" },
-    { url = "https://files.pythonhosted.org/packages/e3/7d/183d18f5b3c28d9aefa2130f12d633a57636865453f1ce7433041e00d31a/imagecodecs-2026.8.16-cp315-cp315t-macosx_10_15_x86_64.whl", hash = "sha256:f2b2f7f7a7c4918b3c1bc5a8dba7fd369c7456449fe7f61e522a72eec6905698", size = 15406581, upload-time = "2026-08-15T16:06:55.579Z" },
-    { url = "https://files.pythonhosted.org/packages/62/41/f9cd37481294ba0eeecfb0063253406e79e1b2cb398d6198df26538c5e36/imagecodecs-2026.8.16-cp315-cp315t-macosx_11_0_arm64.whl", hash = "sha256:31537513f46db6822b5ccff57d02ea131e9f7786d52e2e0b69ce38792350a3fa", size = 13383849, upload-time = "2026-08-15T16:06:58.617Z" },
-    { url = "https://files.pythonhosted.org/packages/37/dc/31ec12056945f18a6ddc1410325fa29b834eb52eb7bd3b63008db1bb1c66/imagecodecs-2026.8.16-cp315-cp315t-manylinux_2_28_aarch64.whl", hash = "sha256:207747fe4b1c65b46eedef0ede388cbc527d03e5de1dfc73873e305d8ecd6f06", size = 32775737, upload-time = "2026-08-15T16:07:02.631Z" },
-    { url = "https://files.pythonhosted.org/packages/3e/ac/4ddd09edc70dccb68ba0ed0074b9389b0cb05862cfb9b351adc4f0adf1ae/imagecodecs-2026.8.16-cp315-cp315t-manylinux_2_28_x86_64.whl", hash = "sha256:70959750594ab4fb16cc966e344979109efac0d3d3897bc8bac20cf560a825bd", size = 32271785, upload-time = "2026-08-15T16:07:07.154Z" },
-    { url = "https://files.pythonhosted.org/packages/15/28/aef2f6919cfface4354d21f5b2ba923ee6d5ccdbc673bfa68661902dea4a/imagecodecs-2026.8.16-cp315-cp315t-win32.whl", hash = "sha256:701645d424f8fdb9007da269888797b16c50b774f1720b68302466771c339a7d", size = 17304445, upload-time = "2026-08-15T16:07:10.479Z" },
-    { url = "https://files.pythonhosted.org/packages/9b/a8/8716691a21dc3249ec5c8945a21010cdc0db68aaf21e21d23ad6700acbd6/imagecodecs-2026.8.16-cp315-cp315t-win_amd64.whl", hash = "sha256:8065dbb611562bb61b666a453d7c9b35533dd28b5afbeceb79dd69bb91162855", size = 22100436, upload-time = "2026-08-15T16:07:14.02Z" },
-    { url = "https://files.pythonhosted.org/packages/56/a1/11a85d6243ef49da4cf141f0d52eb0a85028b0b0a1c82dda2ef8f1da3b57/imagecodecs-2026.8.16-cp315-cp315t-win_arm64.whl", hash = "sha256:64626fb7fc7a722136990dde9a5c3455dfcf579d5907db062eabb5c7d8c0e7cf", size = 17664176, upload-time = "2026-08-15T16:07:17.111Z" },
 ]
 
 [[package]]
@@ -2413,20 +2425,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/cd/de/5c0189b0582e21583c2a213081c35a2501c0f9e51f21f6a52f55fbb9a4ff/ImageHash-4.3.2.tar.gz", hash = "sha256:e54a79805afb82a34acde4746a16540503a9636fd1ffb31d8e099b29bbbf8156", size = 303190, upload-time = "2025-02-01T08:45:39.328Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/31/2c/5f0903a53a62029875aaa3884c38070cc388248a2c1b9aa935632669e5a7/ImageHash-4.3.2-py2.py3-none-any.whl", hash = "sha256:02b0f965f8c77cd813f61d7d39031ea27d4780e7ebcad56c6cd6a709acc06e5f", size = 296657, upload-time = "2025-02-01T08:45:36.102Z" },
-]
-
-[[package]]
-name = "imageio-ffmpeg"
-version = "0.6.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/44/bd/c3343c721f2a1b0c9fc71c1aebf1966a3b7f08c2eea8ed5437a2865611d6/imageio_ffmpeg-0.6.0.tar.gz", hash = "sha256:e2556bed8e005564a9f925bb7afa4002d82770d6b08825078b7697ab88ba1755", size = 25210, upload-time = "2025-01-16T21:34:32.747Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/58/87ef68ac83f4c7690961bce288fd8e382bc5f1513860fc7f90a9c1c1c6bf/imageio_ffmpeg-0.6.0-py3-none-macosx_10_9_intel.macosx_10_9_x86_64.whl", hash = "sha256:9d2baaf867088508d4a3458e61eeb30e945c4ad8016025545f66c4b5aaef0a61", size = 24932969, upload-time = "2025-01-16T21:34:20.464Z" },
-    { url = "https://files.pythonhosted.org/packages/40/5c/f3d8a657d362cc93b81aab8feda487317da5b5d31c0e1fdfd5e986e55d17/imageio_ffmpeg-0.6.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:b1ae3173414b5fc5f538a726c4e48ea97edc0d2cdc11f103afee655c463fa742", size = 21113891, upload-time = "2025-01-16T21:34:00.277Z" },
-    { url = "https://files.pythonhosted.org/packages/33/e7/1925bfbc563c39c1d2e82501d8372734a5c725e53ac3b31b4c2d081e895b/imageio_ffmpeg-0.6.0-py3-none-manylinux2014_aarch64.whl", hash = "sha256:1d47bebd83d2c5fc770720d211855f208af8a596c82d17730aa51e815cdee6dc", size = 25632706, upload-time = "2025-01-16T21:33:53.475Z" },
-    { url = "https://files.pythonhosted.org/packages/a0/2d/43c8522a2038e9d0e7dbdf3a61195ecc31ca576fb1527a528c877e87d973/imageio_ffmpeg-0.6.0-py3-none-manylinux2014_x86_64.whl", hash = "sha256:c7e46fcec401dd990405049d2e2f475e2b397779df2519b544b8aab515195282", size = 29498237, upload-time = "2025-01-16T21:34:13.726Z" },
-    { url = "https://files.pythonhosted.org/packages/a0/13/59da54728351883c3c1d9fca1710ab8eee82c7beba585df8f25ca925f08f/imageio_ffmpeg-0.6.0-py3-none-win32.whl", hash = "sha256:196faa79366b4a82f95c0f4053191d2013f4714a715780f0ad2a68ff37483cc2", size = 19652251, upload-time = "2025-01-16T21:34:06.812Z" },
-    { url = "https://files.pythonhosted.org/packages/2c/c6/fa760e12a2483469e2bf5058c5faff664acf66cadb4df2ad6205b016a73d/imageio_ffmpeg-0.6.0-py3-none-win_amd64.whl", hash = "sha256:02fa47c83703c37df6bfe4896aab339013f62bf02c5ebf2dce6da56af04ffc0a", size = 31246824, upload-time = "2025-01-16T21:34:28.6Z" },
 ]
 
 [[package]]
@@ -2826,7 +2824,7 @@ dependencies = [
     { name = "nbformat" },
     { name = "packaging" },
     { name = "prometheus-client" },
-    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin' and sys_platform != 'linux') or (os_name == 'nt' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13') or (os_name == 'nt' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (os_name != 'nt' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
+    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin' and sys_platform != 'linux') or (os_name == 'nt' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (os_name != 'nt' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
     { name = "pyzmq" },
     { name = "send2trash" },
     { name = "terminado" },
@@ -2844,7 +2842,7 @@ name = "jupyter-server-terminals"
 version = "0.5.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin' and sys_platform != 'linux') or (os_name == 'nt' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13') or (os_name == 'nt' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (os_name != 'nt' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
+    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin' and sys_platform != 'linux') or (os_name == 'nt' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (os_name != 'nt' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
     { name = "terminado" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/f4/a7/bcd0a9b0cbba88986fe944aaaf91bfda603e5a50bda8ed15123f381a3b2f/jupyter_server_terminals-0.5.4.tar.gz", hash = "sha256:bbda128ed41d0be9020349f9f1f2a4ab9952a73ed5f5ac9f1419794761fb87f5", size = 31770, upload-time = "2026-01-14T16:53:20.213Z" }
@@ -3276,6 +3274,46 @@ wheels = [
 ]
 
 [[package]]
+name = "lz4"
+version = "4.4.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/57/51/f1b86d93029f418033dddf9b9f79c8d2641e7454080478ee2aab5123173e/lz4-4.4.5.tar.gz", hash = "sha256:5f0b9e53c1e82e88c10d7c180069363980136b9d7a8306c4dca4f760d60c39f0", size = 172886, upload-time = "2025-11-03T13:02:36.061Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/ac/016e4f6de37d806f7cc8f13add0a46c9a7cfc41a5ddc2bc831d7954cf1ce/lz4-4.4.5-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:df5aa4cead2044bab83e0ebae56e0944cc7fcc1505c7787e9e1057d6d549897e", size = 207163, upload-time = "2025-11-03T13:01:45.895Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/df/0fadac6e5bd31b6f34a1a8dbd4db6a7606e70715387c27368586455b7fc9/lz4-4.4.5-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:6d0bf51e7745484d2092b3a51ae6eb58c3bd3ce0300cf2b2c14f76c536d5697a", size = 207150, upload-time = "2025-11-03T13:01:47.205Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/17/34e36cc49bb16ca73fb57fbd4c5eaa61760c6b64bce91fcb4e0f4a97f852/lz4-4.4.5-cp312-cp312-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:7b62f94b523c251cf32aa4ab555f14d39bd1a9df385b72443fd76d7c7fb051f5", size = 1292045, upload-time = "2025-11-03T13:01:48.667Z" },
+    { url = "https://files.pythonhosted.org/packages/90/1c/b1d8e3741e9fc89ed3b5f7ef5f22586c07ed6bb04e8343c2e98f0fa7ff04/lz4-4.4.5-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:2c3ea562c3af274264444819ae9b14dbbf1ab070aff214a05e97db6896c7597e", size = 1279546, upload-time = "2025-11-03T13:01:50.159Z" },
+    { url = "https://files.pythonhosted.org/packages/55/d9/e3867222474f6c1b76e89f3bd914595af69f55bf2c1866e984c548afdc15/lz4-4.4.5-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:24092635f47538b392c4eaeff14c7270d2c8e806bf4be2a6446a378591c5e69e", size = 1368249, upload-time = "2025-11-03T13:01:51.273Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/e7/d667d337367686311c38b580d1ca3d5a23a6617e129f26becd4f5dc458df/lz4-4.4.5-cp312-cp312-win32.whl", hash = "sha256:214e37cfe270948ea7eb777229e211c601a3e0875541c1035ab408fbceaddf50", size = 88189, upload-time = "2025-11-03T13:01:52.605Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/0b/a54cd7406995ab097fceb907c7eb13a6ddd49e0b231e448f1a81a50af65c/lz4-4.4.5-cp312-cp312-win_amd64.whl", hash = "sha256:713a777de88a73425cf08eb11f742cd2c98628e79a8673d6a52e3c5f0c116f33", size = 99497, upload-time = "2025-11-03T13:01:53.477Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/7e/dc28a952e4bfa32ca16fa2eb026e7a6ce5d1411fcd5986cd08c74ec187b9/lz4-4.4.5-cp312-cp312-win_arm64.whl", hash = "sha256:a88cbb729cc333334ccfb52f070463c21560fca63afcf636a9f160a55fac3301", size = 91279, upload-time = "2025-11-03T13:01:54.419Z" },
+    { url = "https://files.pythonhosted.org/packages/2f/46/08fd8ef19b782f301d56a9ccfd7dafec5fd4fc1a9f017cf22a1accb585d7/lz4-4.4.5-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:6bb05416444fafea170b07181bc70640975ecc2a8c92b3b658c554119519716c", size = 207171, upload-time = "2025-11-03T13:01:56.595Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/3f/ea3334e59de30871d773963997ecdba96c4584c5f8007fd83cfc8f1ee935/lz4-4.4.5-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:b424df1076e40d4e884cfcc4c77d815368b7fb9ebcd7e634f937725cd9a8a72a", size = 207163, upload-time = "2025-11-03T13:01:57.721Z" },
+    { url = "https://files.pythonhosted.org/packages/41/7b/7b3a2a0feb998969f4793c650bb16eff5b06e80d1f7bff867feb332f2af2/lz4-4.4.5-cp313-cp313-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:216ca0c6c90719731c64f41cfbd6f27a736d7e50a10b70fad2a9c9b262ec923d", size = 1292136, upload-time = "2025-11-03T13:02:00.375Z" },
+    { url = "https://files.pythonhosted.org/packages/89/d1/f1d259352227bb1c185288dd694121ea303e43404aa77560b879c90e7073/lz4-4.4.5-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:533298d208b58b651662dd972f52d807d48915176e5b032fb4f8c3b6f5fe535c", size = 1279639, upload-time = "2025-11-03T13:02:01.649Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/fb/ba9256c48266a09012ed1d9b0253b9aa4fe9cdff094f8febf5b26a4aa2a2/lz4-4.4.5-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:451039b609b9a88a934800b5fc6ee401c89ad9c175abf2f4d9f8b2e4ef1afc64", size = 1368257, upload-time = "2025-11-03T13:02:03.35Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/6d/dee32a9430c8b0e01bbb4537573cabd00555827f1a0a42d4e24ca803935c/lz4-4.4.5-cp313-cp313-win32.whl", hash = "sha256:a5f197ffa6fc0e93207b0af71b302e0a2f6f29982e5de0fbda61606dd3a55832", size = 88191, upload-time = "2025-11-03T13:02:04.406Z" },
+    { url = "https://files.pythonhosted.org/packages/18/e0/f06028aea741bbecb2a7e9648f4643235279a770c7ffaf70bd4860c73661/lz4-4.4.5-cp313-cp313-win_amd64.whl", hash = "sha256:da68497f78953017deb20edff0dba95641cc86e7423dfadf7c0264e1ac60dc22", size = 99502, upload-time = "2025-11-03T13:02:05.886Z" },
+    { url = "https://files.pythonhosted.org/packages/61/72/5bef44afb303e56078676b9f2486f13173a3c1e7f17eaac1793538174817/lz4-4.4.5-cp313-cp313-win_arm64.whl", hash = "sha256:c1cfa663468a189dab510ab231aad030970593f997746d7a324d40104db0d0a9", size = 91285, upload-time = "2025-11-03T13:02:06.77Z" },
+    { url = "https://files.pythonhosted.org/packages/49/55/6a5c2952971af73f15ed4ebfdd69774b454bd0dc905b289082ca8664fba1/lz4-4.4.5-cp313-cp313t-macosx_10_13_x86_64.whl", hash = "sha256:67531da3b62f49c939e09d56492baf397175ff39926d0bd5bd2d191ac2bff95f", size = 207348, upload-time = "2025-11-03T13:02:08.117Z" },
+    { url = "https://files.pythonhosted.org/packages/4e/d7/fd62cbdbdccc35341e83aabdb3f6d5c19be2687d0a4eaf6457ddf53bba64/lz4-4.4.5-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:a1acbbba9edbcbb982bc2cac5e7108f0f553aebac1040fbec67a011a45afa1ba", size = 207340, upload-time = "2025-11-03T13:02:09.152Z" },
+    { url = "https://files.pythonhosted.org/packages/77/69/225ffadaacb4b0e0eb5fd263541edd938f16cd21fe1eae3cd6d5b6a259dc/lz4-4.4.5-cp313-cp313t-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:a482eecc0b7829c89b498fda883dbd50e98153a116de612ee7c111c8bcf82d1d", size = 1293398, upload-time = "2025-11-03T13:02:10.272Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/9e/2ce59ba4a21ea5dc43460cba6f34584e187328019abc0e66698f2b66c881/lz4-4.4.5-cp313-cp313t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:e099ddfaa88f59dd8d36c8a3c66bd982b4984edf127eb18e30bb49bdba68ce67", size = 1281209, upload-time = "2025-11-03T13:02:12.091Z" },
+    { url = "https://files.pythonhosted.org/packages/80/4f/4d946bd1624ec229b386a3bc8e7a85fa9a963d67d0a62043f0af0978d3da/lz4-4.4.5-cp313-cp313t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a2af2897333b421360fdcce895c6f6281dc3fab018d19d341cf64d043fc8d90d", size = 1369406, upload-time = "2025-11-03T13:02:13.683Z" },
+    { url = "https://files.pythonhosted.org/packages/02/a2/d429ba4720a9064722698b4b754fb93e42e625f1318b8fe834086c7c783b/lz4-4.4.5-cp313-cp313t-win32.whl", hash = "sha256:66c5de72bf4988e1b284ebdd6524c4bead2c507a2d7f172201572bac6f593901", size = 88325, upload-time = "2025-11-03T13:02:14.743Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/85/7ba10c9b97c06af6c8f7032ec942ff127558863df52d866019ce9d2425cf/lz4-4.4.5-cp313-cp313t-win_amd64.whl", hash = "sha256:cdd4bdcbaf35056086d910d219106f6a04e1ab0daa40ec0eeef1626c27d0fddb", size = 99643, upload-time = "2025-11-03T13:02:15.978Z" },
+    { url = "https://files.pythonhosted.org/packages/77/4d/a175459fb29f909e13e57c8f475181ad8085d8d7869bd8ad99033e3ee5fa/lz4-4.4.5-cp313-cp313t-win_arm64.whl", hash = "sha256:28ccaeb7c5222454cd5f60fcd152564205bcb801bd80e125949d2dfbadc76bbd", size = 91504, upload-time = "2025-11-03T13:02:17.313Z" },
+    { url = "https://files.pythonhosted.org/packages/63/9c/70bdbdb9f54053a308b200b4678afd13efd0eafb6ddcbb7f00077213c2e5/lz4-4.4.5-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:c216b6d5275fc060c6280936bb3bb0e0be6126afb08abccde27eed23dead135f", size = 207586, upload-time = "2025-11-03T13:02:18.263Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/cb/bfead8f437741ce51e14b3c7d404e3a1f6b409c440bad9b8f3945d4c40a7/lz4-4.4.5-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:c8e71b14938082ebaf78144f3b3917ac715f72d14c076f384a4c062df96f9df6", size = 207161, upload-time = "2025-11-03T13:02:19.286Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/18/b192b2ce465dfbeabc4fc957ece7a1d34aded0d95a588862f1c8a86ac448/lz4-4.4.5-cp314-cp314-manylinux1_i686.manylinux_2_28_i686.manylinux_2_5_i686.whl", hash = "sha256:9b5e6abca8df9f9bdc5c3085f33ff32cdc86ed04c65e0355506d46a5ac19b6e9", size = 1292415, upload-time = "2025-11-03T13:02:20.829Z" },
+    { url = "https://files.pythonhosted.org/packages/67/79/a4e91872ab60f5e89bfad3e996ea7dc74a30f27253faf95865771225ccba/lz4-4.4.5-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3b84a42da86e8ad8537aabef062e7f661f4a877d1c74d65606c49d835d36d668", size = 1279920, upload-time = "2025-11-03T13:02:22.013Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/01/d52c7b11eaa286d49dae619c0eec4aabc0bf3cda7a7467eb77c62c4471f3/lz4-4.4.5-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0bba042ec5a61fa77c7e380351a61cb768277801240249841defd2ff0a10742f", size = 1368661, upload-time = "2025-11-03T13:02:23.208Z" },
+    { url = "https://files.pythonhosted.org/packages/f7/da/137ddeea14c2cb86864838277b2607d09f8253f152156a07f84e11768a28/lz4-4.4.5-cp314-cp314-win32.whl", hash = "sha256:bd85d118316b53ed73956435bee1997bd06cc66dd2fa74073e3b1322bd520a67", size = 90139, upload-time = "2025-11-03T13:02:24.301Z" },
+    { url = "https://files.pythonhosted.org/packages/18/2c/8332080fd293f8337779a440b3a143f85e374311705d243439a3349b81ad/lz4-4.4.5-cp314-cp314-win_amd64.whl", hash = "sha256:92159782a4502858a21e0079d77cdcaade23e8a5d252ddf46b0652604300d7be", size = 101497, upload-time = "2025-11-03T13:02:25.187Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/28/2635a8141c9a4f4bc23f5135a92bbcf48d928d8ca094088c962df1879d64/lz4-4.4.5-cp314-cp314-win_arm64.whl", hash = "sha256:d994b87abaa7a88ceb7a37c90f547b8284ff9da694e6afcfaa8568d739faf3f7", size = 93812, upload-time = "2025-11-03T13:02:26.133Z" },
+]
+
+[[package]]
 name = "mamba-ssm"
 version = "2.3.2.post1"
 source = { registry = "https://pypi.org/simple" }
@@ -3563,6 +3601,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/bd/c0/9f7c9a46090390368a4d7bcb76bb87a4a36c421e4c0792cdb53486ffac7a/matplotlib_inline-0.2.2.tar.gz", hash = "sha256:72f3fe8fce36b70d4a5b612f899090cd0401deddc4ea90e1572b9f4bfb058c79", size = 8150, upload-time = "2026-05-08T17:33:33.49Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/09/5b161152e2d90f7b87f781c2e1267494aef9c32498df793f73ad0a0a494a/matplotlib_inline-0.2.2-py3-none-any.whl", hash = "sha256:3c821cf1c209f59fb2d2d64abbf5b23b67bcb2210d663f9918dd851c6da1fcf6", size = 9534, upload-time = "2026-05-08T17:33:32.055Z" },
+]
+
+[[package]]
+name = "mcap"
+version = "1.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lz4" },
+    { name = "zstandard" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/26/16/2ac1cbeaa524453d616050db9fda14010eda507fd8130e0676879bb8faf9/mcap-1.5.0.tar.gz", hash = "sha256:9c385cc5e5a6bccff4aa0c6814b305faa2c3239ece46778661eaa6d809b1768a", size = 23110, upload-time = "2026-09-24T21:45:44.714Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/13/59/caa4d60a58f129659ea5403e6fb52808f87005dfcbaa03e84f0e07f0033e/mcap-1.5.0-py3-none-any.whl", hash = "sha256:44ba129d381abdca474fbf5bcee036db87d7075d9059b139bf2fee2975c8bd52", size = 21021, upload-time = "2026-09-24T21:45:43.51Z" },
 ]
 
 [[package]]
@@ -4316,11 +4367,11 @@ name = "nvidia-cublas"
 version = "13.1.1.3"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "nvidia-cuda-nvrtc", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
+    { name = "nvidia-cuda-nvrtc", marker = "(sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a7/a1/0bd24ee8c8d03adac032fd2909426a00c88f8c57961b1277ded97f91119f/nvidia_cublas-13.1.1.3-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:b7a210458267ac818974c53038fbec2e969d5c99f305ab15c72522fa9f001dd5", size = 542848918, upload-time = "2026-04-08T18:46:22.985Z" },
@@ -4475,11 +4526,11 @@ name = "nvidia-cudnn-cu13"
 version = "9.24.0.43"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "nvidia-cublas", version = "13.1.1.3", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
+    { name = "nvidia-cublas", version = "13.1.1.3", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ca/30/7c257e3d5cb4fecb147b93895c66e29c93f8e76d74b45bb418ff0587c4ec/nvidia_cudnn_cu13-9.24.0.43-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:a6812a554a1ff0413e9c52b84c26c050380649ab9615f9c16bded368ce9f421f", size = 650976863, upload-time = "2026-07-02T16:23:39.248Z" },
@@ -4511,7 +4562,7 @@ name = "nvidia-cufft"
 version = "12.0.0.61"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
+    { name = "nvidia-nvjitlink", marker = "(sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8b/ae/f417a75c0259e85c1d2f83ca4e960289a5f814ed0cea74d18c353d3e989d/nvidia_cufft-12.0.0.61-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:2708c852ef8cd89d1d2068bdbece0aa188813a0c934db3779b9b1faa8442e5f5", size = 214053554, upload-time = "2025-09-04T08:31:38.196Z" },
@@ -4576,9 +4627,9 @@ version = "12.0.4.66"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "nvidia-cublas", version = "13.1.0.3", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
-    { name = "nvidia-cublas", version = "13.1.1.3", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
-    { name = "nvidia-cusparse", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
-    { name = "nvidia-nvjitlink", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
+    { name = "nvidia-cublas", version = "13.1.1.3", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
+    { name = "nvidia-cusparse", marker = "(sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
+    { name = "nvidia-nvjitlink", marker = "(sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c8/c3/b30c9e935fc01e3da443ec0116ed1b2a009bb867f5324d3f2d7e533e776b/nvidia_cusolver-12.0.4.66-py3-none-manylinux_2_27_aarch64.whl", hash = "sha256:02c2457eaa9e39de20f880f4bd8820e6a1cfb9f9a34f820eb12a155aa5bc92d2", size = 223467760, upload-time = "2025-09-04T08:33:04.222Z" },
@@ -4606,7 +4657,7 @@ name = "nvidia-cusparse"
 version = "12.6.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink", marker = "(sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
+    { name = "nvidia-nvjitlink", marker = "(sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f8/94/5c26f33738ae35276672f12615a64bd008ed5be6d1ebcb23579285d960a9/nvidia_cusparse-12.6.3.3-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:80bcc4662f23f1054ee334a15c72b8940402975e0eab63178fc7e670aa59472c", size = 162155568, upload-time = "2025-09-04T08:33:42.864Z" },
@@ -4657,8 +4708,8 @@ name = "nvidia-cusparselt-cu13"
 version = "0.8.1"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/46/e1/cdc1797eadf82d3a9a575a19b33fdc871a97edbec42c00b5b5e914f4aff4/nvidia_cusparselt_cu13-0.8.1-py3-none-manylinux2014_aarch64.whl", hash = "sha256:4dca476c50bf4780d46cd0bfbd82e2bc10a08e4fef7950917ce8d7578d22a23f", size = 221051344, upload-time = "2025-09-05T18:49:51.289Z" },
@@ -4781,8 +4832,8 @@ name = "nvidia-nccl-cu13"
 version = "2.30.7"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/21/a73174c6157101bdf1ffc22b517f76ff0082613989dd9bc8f43e8034caac/nvidia_nccl_cu13-2.30.7-py3-none-manylinux_2_18_aarch64.whl", hash = "sha256:ca786ffa5a647c75d4d1f5cc72a6c4f537947e2ba8823d7c8aaf768e7a7b9f77", size = 215983881, upload-time = "2026-06-09T03:23:15.633Z" },
@@ -5353,6 +5404,8 @@ name = "project"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "accelerate" },
+    { name = "av" },
     { name = "beartype" },
     { name = "beautifulsoup4" },
     { name = "black" },
@@ -5373,7 +5426,6 @@ dependencies = [
     { name = "hydra-core" },
     { name = "imagecodecs-numcodecs" },
     { name = "imagehash" },
-    { name = "imageio-ffmpeg" },
     { name = "ipdb" },
     { name = "jaxtyping" },
     { name = "jsonlines" },
@@ -5382,6 +5434,7 @@ dependencies = [
     { name = "langdetect" },
     { name = "liger-kernel", marker = "sys_platform == 'linux' or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
     { name = "matplotlib" },
+    { name = "mcap" },
     { name = "modal" },
     { name = "multiprocess" },
     { name = "mwparserfromhell" },
@@ -5417,6 +5470,8 @@ dependencies = [
     { name = "torchaudio", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(sys_platform != 'darwin' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
     { name = "torchaudio", version = "2.11.0+cu129", source = { registry = "https://download.pytorch.org/whl/cu129" }, marker = "(sys_platform == 'linux' and extra == 'extra-7-project-ampere') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
     { name = "torchaudio", version = "2.11.0+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "(sys_platform == 'linux' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu')" },
+    { name = "torchcodec", version = "0.17.0", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'darwin' or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
+    { name = "torchcodec", version = "0.17.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform != 'darwin' or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
     { name = "torchdiffeq" },
     { name = "torchmetrics" },
     { name = "torchvision", version = "0.26.0+cu129", source = { registry = "https://download.pytorch.org/whl/cu129" }, marker = "(sys_platform == 'linux' and extra == 'extra-7-project-ampere') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
@@ -5498,8 +5553,10 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "accelerate", specifier = ">=1.15.0" },
     { name = "accelerate", marker = "extra == 'ampere'" },
     { name = "accelerate", marker = "extra == 'ampere13'" },
+    { name = "av", specifier = "==19.0.1" },
     { name = "beartype" },
     { name = "beautifulsoup4" },
     { name = "bitsandbytes", marker = "extra == 'ampere'" },
@@ -5540,7 +5597,6 @@ requires-dist = [
     { name = "hydra-core" },
     { name = "imagecodecs-numcodecs" },
     { name = "imagehash" },
-    { name = "imageio-ffmpeg" },
     { name = "ipdb" },
     { name = "jaxtyping" },
     { name = "jsonlines" },
@@ -5555,6 +5611,7 @@ requires-dist = [
     { name = "mamba-ssm", marker = "sys_platform != 'linux' and extra == 'ampere'" },
     { name = "mamba-ssm", marker = "sys_platform != 'linux' and extra == 'ampere13'" },
     { name = "matplotlib" },
+    { name = "mcap", specifier = "==1.5.0" },
     { name = "modal" },
     { name = "multiprocess" },
     { name = "mwparserfromhell" },
@@ -5596,6 +5653,7 @@ requires-dist = [
     { name = "torchaudio", marker = "sys_platform != 'linux' and extra == 'ampere'" },
     { name = "torchaudio", marker = "sys_platform != 'linux' and extra == 'ampere13'" },
     { name = "torchaudio", marker = "extra == 'cpu'", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "project", extra = "cpu" } },
+    { name = "torchcodec", specifier = "==0.17.0", index = "https://download.pytorch.org/whl/cpu" },
     { name = "torchdiffeq" },
     { name = "torchmetrics" },
     { name = "torchvision", specifier = ">=0.25.0" },
@@ -7050,7 +7108,8 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
@@ -7073,7 +7132,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/6d/44/f5da03a8ef95d369145c5bb53050e7877c9f3d312e128605fd9504829143/setuptools-84.0.0.tar.gz", hash = "sha256:f4695c21257f0d9b537ec2692c941d02ee143b7cc1276941349a546573b2ef73", size = 1168449, upload-time = "2026-08-08T18:27:58.365Z" }
 wheels = [
@@ -7570,7 +7630,7 @@ version = "0.18.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ptyprocess", marker = "os_name != 'nt' or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
-    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin' and sys_platform != 'linux') or (os_name == 'nt' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13') or (os_name == 'nt' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (os_name != 'nt' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
+    { name = "pywinpty", marker = "(os_name == 'nt' and sys_platform != 'darwin' and sys_platform != 'linux') or (os_name == 'nt' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (os_name != 'nt' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (os_name != 'nt' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'darwin' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (sys_platform == 'linux' and extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
     { name = "tornado" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/8a/11/965c6fd8e5cc254f1fe142d547387da17a8ebfd75a3455f637c663fb38a0/terminado-0.18.1.tar.gz", hash = "sha256:de09f2c4b85de4765f7714688fff57d3e75bad1f909b589fde880460c753fd2e", size = 32701, upload-time = "2024-03-12T14:34:39.026Z" }
@@ -7888,7 +7948,8 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
@@ -7907,7 +7968,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
 ]
 dependencies = [
     { name = "cuda-bindings", version = "13.4.3", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.15' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu')" },
@@ -8048,7 +8110,8 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
@@ -8067,7 +8130,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f1/b1/77658817acacd01a72b714440c62f419efc4d90170e704e8e7a2c0918988/torchaudio-2.11.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:a1cf1acc883bee9cb906a933572fed6a8a933f86ef34e9ea7d803f72317e8c1b", size = 684226, upload-time = "2026-03-23T18:13:40.023Z" },
@@ -8169,6 +8233,91 @@ wheels = [
     { url = "https://download-r2.pytorch.org/whl/cu130/torchaudio-2.11.0%2Bcu130-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:94e90c94c93a626e21686c3dc76d4597c3e4ad178a911611fed4f14c8de07293", upload-time = "2026-03-23T15:50:26Z" },
     { url = "https://download-r2.pytorch.org/whl/cu130/torchaudio-2.11.0%2Bcu130-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:1cef8561494c44b12eb6a390d9f2ff52f6fa540b9a7aba6c8951c074056a2f11", upload-time = "2026-03-23T15:50:26Z" },
     { url = "https://download-r2.pytorch.org/whl/cu130/torchaudio-2.11.0%2Bcu130-cp314-cp314t-win_amd64.whl", hash = "sha256:ac4988a74921500f9f2dc6502867876bf1bf15d845a518f4711d21ec81a1efef", upload-time = "2026-03-23T15:50:26Z" },
+]
+
+[[package]]
+name = "torchcodec"
+version = "0.17.0"
+source = { registry = "https://download.pytorch.org/whl/cpu" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:3d69d30fbd2d5f9cc6d63c6d970acb5fa3aeddb5524a059f0ca538a83972f65c", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:509558ec5d4f431fe2411d8f57e8e4fd6772f799bd44e570946b66989853c402", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0-cp314-cp314-macosx_14_0_arm64.whl", hash = "sha256:9567427ba28cee36704104f66bbaebfc210b89204fceb3063ca09a3fdeb0ac02", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0-cp314-cp314t-macosx_14_0_arm64.whl", hash = "sha256:7c6004dbeb27a9e58bad0b3d10b4d7f7cda4407c0f10ba45a5a2ebd60aa33dbe", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0-cp315-cp315-macosx_14_0_arm64.whl", hash = "sha256:d37b11569191c9215240591057138ab66dcd7f9ee79049414b94d3a88521a6bc", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0-cp315-cp315t-macosx_14_0_arm64.whl", hash = "sha256:21f07aa10ac68f37238fcf8bb077b5379440477e881f5fa4ad17f78c60567385", upload-time = "2026-09-30T16:55:37Z" },
+]
+
+[[package]]
+name = "torchcodec"
+version = "0.17.0+cpu"
+source = { registry = "https://download.pytorch.org/whl/cpu" }
+resolution-markers = [
+    "python_full_version >= '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform == 'emscripten' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version == '3.13.*' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform == 'linux' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform == 'linux' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform == 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform == 'emscripten' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.13' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+]
+wheels = [
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:187383c26847db470a22a9aa8b15e45611dda594f3fdc1a6a32b670f1d7ddd82", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:de8e58e5f30692ee7cf92b1b313d0ffdeaac95148525ef2a865067fca0255246", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp312-cp312-win_amd64.whl", hash = "sha256:3b03a3ba2b843ba4df6fc87c559442e62252f0da9b88c48041029327479912bc", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1626d5af9c6ebbbba23b2935901e8dabb24573a0ae68fca789d8b4d6c173c0bb", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp313-cp313-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ad67143ecdc26d6437e16eeec3ab1a560c6cc0390b2460b1d990b3cda93ccc57", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp313-cp313-win_amd64.whl", hash = "sha256:b10013fb700da56d4cb073e096586f3392c1ca8d62f2cd783ccf464efa8c2b77", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp314-cp314-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8e1a4ec1b5218f6f23ad5b51dc3faf54a9ec56336c1f9116230b5202002e358b", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp314-cp314-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f4974d75c339e71f6c57af96cc25379307e7d9f1422894acedcb39a2a9e67e6a", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp314-cp314-win_amd64.whl", hash = "sha256:b4a33af2d0e049ef7872e06ea65305bbdb0e1fba15ba760cffdd06ac2de20955", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp314-cp314t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:453a2b8c3f558394c64d374aea883da88be017ac9ca5f53a0cae358b5531ecf2", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:6fbf462c74dfa04d775f488b42280240e5d6594691b2ed10234825728018fc01", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp315-cp315-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:aaf9ecf852894f2203fc2199f21fb7dbddda372960abedee488c01e8043229c9", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp315-cp315-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3025e8f4b07df9858d094bd334b7cd555f7d4179815603ed176ff8e6cf9611b2", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp315-cp315t-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:f34103030e325f6b1a153143d90de2a485f4dbb4bdb985a2fb85c954da8395fa", upload-time = "2026-09-30T16:55:36Z" },
+    { url = "https://download.pytorch.org/whl/cpu/torchcodec-0.17.0%2Bcpu-cp315-cp315t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:42245e3da6aa7b86d6db7387f21949a3ba8dca42b490510e043b964461d4a50d", upload-time = "2026-09-30T16:55:36Z" },
 ]
 
 [[package]]
@@ -8303,7 +8452,8 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
@@ -8322,7 +8472,8 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.14' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
 ]
 dependencies = [
     { name = "numpy", marker = "(sys_platform != 'linux' and extra == 'extra-7-project-ampere') or (sys_platform != 'linux' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13') or (extra == 'extra-7-project-ampere' and extra == 'extra-7-project-cpu') or (extra == 'extra-7-project-ampere13' and extra == 'extra-7-project-cpu') or (extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu')" },
@@ -8480,7 +8631,7 @@ resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'emscripten' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version >= '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'win32' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'emscripten' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version == '3.13.*' and sys_platform == 'darwin' and extra != 'extra-7-project-ampere' and extra == 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
@@ -8498,7 +8649,7 @@ resolution-markers = [
     "python_full_version < '3.13' and sys_platform == 'emscripten' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.13' and sys_platform == 'darwin' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
     "python_full_version < '3.13' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
-    "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
+    "python_full_version < '3.14' and sys_platform != 'darwin' and sys_platform != 'emscripten' and sys_platform != 'win32' and extra != 'extra-7-project-ampere' and extra != 'extra-7-project-ampere13' and extra != 'extra-7-project-cpu'",
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/87/07/0f8cd8e8db0472334253efdaaab3d0819fea27aa99bf0e7f1aeea4ceb5ae/triton-3.8.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:a9c404c69ed4a39e8ec632eaf6b9fe058a060bf98979c177f6ef666f06bb8d50", size = 226474486, upload-time = "2026-08-28T16:08:18.29Z" },

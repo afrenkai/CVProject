@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from contextlib import nullcontext
+from pathlib import Path
 from typing import cast
-
 import timm
 import torch
 from beartype import beartype
@@ -9,7 +9,7 @@ from einops import rearrange, reduce
 from jaxtyping import Float, jaxtyped
 from timm.models.vision_transformer import VisionTransformer
 from torch import Tensor, nn
-from torch.nn import functional
+from torch.nn import functional as F
 
 
 class DinoVideoEncoder(nn.Module):
@@ -22,6 +22,7 @@ class DinoVideoEncoder(nn.Module):
         mean: Sequence[float],
         standard_deviation: Sequence[float],
         frozen: bool = True,
+        cache_directory: Path | None = None,
     ) -> None:
         """
         in general, dinoV2/V3 returns mean pooled lat of cls_tok, r_1 .. r_4
@@ -41,6 +42,7 @@ class DinoVideoEncoder(nn.Module):
                 pretrained=pretrained,
                 num_classes=0,
                 img_size=image_size,
+                cache_dir=cache_directory,
             ),
         )
         self.layer_indices = [layer_number - 1 for layer_number in layer_numbers]
@@ -70,7 +72,7 @@ class DinoVideoEncoder(nn.Module):
             "batch time channel height width -> (batch time) channel height width",
         )
         if images.shape[-2:] != (self.image_size, self.image_size):
-            images = functional.interpolate(
+            images = F.interpolate(
                 images,
                 size=(self.image_size, self.image_size),
                 mode="bilinear",

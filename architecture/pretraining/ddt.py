@@ -1,9 +1,11 @@
+import torch
 from einops import rearrange
 from torch import Tensor, nn
-from torch.nn import functional
-
+from torch.nn import functional as F
+from torch.utils.checkpoint import checkpoint
 from architecture.pretraining.tokens import AudioVisualTokenProjector
 from architecture.pretraining.transformers import AdaptiveAttentionBlock
+from architecture.pretraining.types import AudioTokenConfig
 
 
 class AdaptiveOutputProjection(nn.Module):
@@ -44,19 +46,24 @@ class AudioVisualDDTHead(nn.Module):
         mlp_ratio: float,
         dropout: float,
         spatial_grid: tuple[int, int] | None = None,
+        audio_tokens: AudioTokenConfig | None = None,
     ) -> None:
         super().__init__()
+        self.activation_checkpointing = False
+        self.audio_tokens = audio_tokens or AudioTokenConfig()
         self.target_tokens = AudioVisualTokenProjector(
             video_dimension,
             audio_dimension,
             hidden_dimension,
             spatial_grid,
+            self.audio_tokens,
         )
         self.context_tokens = AudioVisualTokenProjector(
             video_dimension,
             audio_dimension,
             hidden_dimension,
             spatial_grid,
+            self.audio_tokens,
         )
         self.action_projection = nn.Linear(
             action_dimension,
@@ -73,7 +80,7 @@ class AudioVisualDDTHead(nn.Module):
         )
         self.audio_output = AdaptiveOutputProjection(
             hidden_dimension,
-            audio_dimension,
+            audio_dimension // self.audio_tokens.tokens_per_step,
         )
 
     def forward(
@@ -97,12 +104,15 @@ class AudioVisualDDTHead(nn.Module):
         )
         context = self.context_tokens(context_video, context_audio, -context_video.shape[1])
         condition = self.condition_projection(
-            functional.silu(backbone_targets + rearrange(backbone_condition, "batch hidden -> batch 1 hidden"))
+            F.silu(backbone_targets + rearrange(backbone_condition, "batch hidden -> batch 1 hidden"))
         )
         for block in self.blocks:
-            targets = block(targets, context, condition, attention_mask)
+            if self.activation_checkpointing and torch.is_grad_enabled():
+                targets = checkpoint(block, targets, context, condition, attention_mask, use_reentrant=False)
+            else:
+                targets = block(targets, context, condition, attention_mask)
 
-        tokens_per_step = video_patches + 1
+        tokens_per_step = video_patches + self.audio_tokens.tokens_per_step
         predictions = rearrange(
             targets,
             "batch (time token) hidden -> batch time token hidden",
@@ -120,7 +130,7 @@ class AudioVisualDDTHead(nn.Module):
             output_condition[:, :, :video_patches],
         )
         audio_velocity = self.audio_output(
-            predictions[:, :, -1],
-            output_condition[:, :, -1],
+            predictions[:, :, video_patches:],
+            output_condition[:, :, video_patches:],
         )
-        return video_velocity, audio_velocity
+        return video_velocity, rearrange(audio_velocity, "batch time token feature -> batch time (token feature)")

@@ -1,12 +1,10 @@
 from typing import Self
-
 import torch
 from beartype import beartype
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
-
 from transport.solvers import audio_clock
 from transport.types import AudioVisualInterpolant, TransportConfig
 

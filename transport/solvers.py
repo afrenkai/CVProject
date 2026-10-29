@@ -3,7 +3,6 @@ from beartype import beartype
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
-
 from architecture.av_model import AudioVisualFlowPredictor
 
 # initial code taken from https://github.com/facebookresearch/Flow-World-Models/blob/main/transport/integrators.py

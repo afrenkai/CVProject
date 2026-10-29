@@ -4,7 +4,7 @@ from diffusers.models.embeddings import get_timestep_embedding
 from einops import einsum, rearrange
 from jaxtyping import Float, jaxtyped
 from torch import Tensor, nn
-from torch.nn import functional
+from torch.nn import functional as F
 
 
 # vaswani PE, stole from old code.
@@ -83,7 +83,7 @@ class MultiHeadAttention(nn.Module):
             "batch key (head channel) -> batch head key channel",
             head=self.heads,
         )
-        attended = functional.scaled_dot_product_attention(
+        attended = F.scaled_dot_product_attention(
             query_tokens,
             key_tokens,
             value_tokens,
@@ -118,7 +118,7 @@ class LinearAttention(nn.Module):
         causal_prefix_lengths: Tensor | None = None,
     ) -> Tensor:
         query_features = (
-            functional.elu(
+            F.elu(
                 rearrange(
                     self.query_projection(query),
                     "batch token (head channel) -> batch head token channel",
@@ -128,7 +128,7 @@ class LinearAttention(nn.Module):
             + 1.0
         )
         key_features = (
-            functional.elu(
+            F.elu(
                 rearrange(
                     self.key_projection(key),
                     "batch token (head channel) -> batch head token channel",
@@ -200,7 +200,7 @@ class SwiGLUFeedForward(nn.Module):
 
     def forward(self, tokens: Tensor) -> Tensor:
         values, gates = self.input_projection(tokens).chunk(2, dim=-1)
-        return self.output_projection(self.dropout(values * functional.silu(gates)))
+        return self.output_projection(self.dropout(values * F.silu(gates)))
 
 
 class AdaptiveAttentionBlock(nn.Module):

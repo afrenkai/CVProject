@@ -4,29 +4,35 @@ from diffusers.models.embeddings import get_2d_sincos_pos_embed
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
 from torch import Tensor, nn
-
-from architecture.pretraining.transformers import frame_position_embeddings
+from architecture.pretraining.transformers import (
+    frame_position_embeddings,
+    sinusoidal_timestep_embedding,
+)
+from architecture.pretraining.types import AudioTokenConfig
 
 
 class AudioVisualTokenProjector(nn.Module):
-    """
-    spatial affine fn, effectively projects from d_v, d_a -> E[1...k]
-
-    """
     def __init__(
         self,
         video_dimension: int,
         audio_dimension: int,
         hidden_dimension: int,
         spatial_grid: tuple[int, int] | None = None,
+        audio_tokens: AudioTokenConfig | None = None,
     ) -> None:
         super().__init__()
+        self.audio_tokens = audio_tokens or AudioTokenConfig()
+        assert audio_dimension % self.audio_tokens.tokens_per_step == 0
         self.video_projection = nn.Linear(video_dimension, hidden_dimension)
-        self.audio_projection = nn.Linear(audio_dimension, hidden_dimension)
+        self.audio_projection = nn.Linear(audio_dimension // self.audio_tokens.tokens_per_step, hidden_dimension)
         self.modality_embedding = nn.Embedding(2, hidden_dimension)
         self.spatial_grid = spatial_grid
         self.hidden_dimension = hidden_dimension
         self.register_buffer("spatial_positions", None, persistent=False)
+        channel_positions = sinusoidal_timestep_embedding(torch.arange(self.audio_tokens.channels), hidden_dimension)
+        self.register_buffer(
+            "audio_channel_positions", channel_positions - channel_positions.mean(dim=0, keepdim=True), persistent=False
+        )
 
     @jaxtyped(typechecker=beartype)
     def forward(
@@ -60,13 +66,40 @@ class AudioVisualTokenProjector(nn.Module):
                     output_type="pt",
                 ).to(video)
             video_tokens = video_tokens + rearrange(self.spatial_positions, "patch hidden -> 1 1 patch hidden")
+        audio_frames = rearrange(
+            audio,
+            "batch time (channel phase feature) -> batch time channel phase feature",
+            channel=self.audio_tokens.channels,
+            phase=self.audio_tokens.frames_per_step,
+        )
+        audio_times = (
+            torch.arange(
+                frame_start * self.audio_tokens.frames_per_step,
+                (frame_start + audio.shape[1]) * self.audio_tokens.frames_per_step,
+                device=audio.device,
+                dtype=audio.dtype,
+            )
+            / self.audio_tokens.frames_per_step
+        )
+        audio_positions = rearrange(
+            sinusoidal_timestep_embedding(audio_times, self.hidden_dimension),
+            "(time phase) hidden -> 1 time 1 phase hidden",
+            phase=self.audio_tokens.frames_per_step,
+        )
         audio_tokens = (
-            self.audio_projection(audio)
+            self.audio_projection(audio_frames)
             + self.modality_embedding.weight[1]
-            + frame_positions[:, :, 0]
-            + action_positions[:, :, 0]
+            + audio_positions
+            + rearrange(self.audio_channel_positions, "channel hidden -> 1 1 channel 1 hidden")
+            + rearrange(action_embeddings, "batch time hidden -> batch time 1 1 hidden")
         )
         return rearrange(
-            torch.cat((video_tokens, audio_tokens[:, :, None]), dim=2),
+            torch.cat(
+                (
+                    video_tokens,
+                    rearrange(audio_tokens, "batch time channel phase hidden -> batch time (channel phase) hidden"),
+                ),
+                dim=2,
+            ),
             "batch time token hidden -> batch (time token) hidden",
         )

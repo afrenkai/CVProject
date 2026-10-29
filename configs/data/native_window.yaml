@@ -1,0 +1,10 @@
+_target_: train_datasets.corpus_types.MediaWindowConfig
+frame_index_directory: null
+video_decoder_threads: 2
+image_size: 128
+video_rate: 30
+sample_rate: 16000
+context_frames: 60
+target_frames: 180
+presentation_tolerance: 0.002
+maximum_screen_gap: 0.15

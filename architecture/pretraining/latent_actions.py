@@ -3,8 +3,7 @@ from beartype import beartype
 from einops import einsum, reduce, repeat
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor, nn
-from torch.nn import functional
-
+from torch.nn import functional as F
 from architecture.pretraining.types import ActionAudioConditioning
 
 
@@ -34,7 +33,7 @@ class LatentActionModel(nn.Module):
             nn.SiLU(),
             nn.Linear(hidden_dimension, action_dimension),
         )
-        codebook = functional.normalize(torch.randn(code_count, action_dimension), dim=-1)
+        codebook = F.normalize(torch.randn(code_count, action_dimension), dim=-1)
         self.register_buffer("codebook", codebook)
         self.register_buffer("ema_counts", torch.ones(code_count))
         self.register_buffer("ema_sums", codebook.clone())
@@ -100,7 +99,7 @@ class LatentActionModel(nn.Module):
         selected_codes = self.codebook[code_ids]
         quantized = encoded + (selected_codes - encoded).detach()
         # TODO: ablate inclusion of commitment_loss, in general not fan of incl loss inline
-        commitment_loss = functional.mse_loss(encoded, selected_codes.detach())
+        commitment_loss = F.mse_loss(encoded, selected_codes.detach())
         return quantized, code_ids, encoded, commitment_loss
 
     @torch.no_grad()
@@ -110,7 +109,7 @@ class LatentActionModel(nn.Module):
         encoded: Float[Tensor, "batch time action"],
         code_ids: Int[Tensor, "batch time"],
     ) -> None:
-        assignments = functional.one_hot(code_ids, self.code_count).to(encoded)
+        assignments = F.one_hot(code_ids, self.code_count).to(encoded)
         counts = reduce(assignments, "batch time code -> code", "sum")
         sums = einsum(
             assignments,

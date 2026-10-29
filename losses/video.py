@@ -1,7 +1,6 @@
 from beartype import beartype
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
-
 from architecture.pretraining.video.video_decoder import DinoVideoDecoder
 from losses.image import image_reconstruction_loss
 

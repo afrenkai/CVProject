@@ -1,5 +1,4 @@
 from typing import Literal, Self
-
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -39,6 +38,17 @@ class TransformerStageConfig(BaseModel):
         return self
 
 
+class AudioTokenConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    channels: PositiveInt = 1
+    frames_per_step: PositiveInt = 1
+
+    @property
+    def tokens_per_step(self) -> int:
+        return self.channels * self.frames_per_step
+
+
 class WorldModelConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -46,6 +56,7 @@ class WorldModelConfig(BaseModel):
     backbone_attention: Literal["quadratic", "linear", "hybrid_kda"] = "quadratic"
     noise_time_embedding: Literal["sinusoidal", "gaussian_fourier"] = "sinusoidal"
     spatial_grid: tuple[PositiveInt, PositiveInt] | None = None
+    audio_tokens: AudioTokenConfig = Field(default_factory=AudioTokenConfig)
     hybrid_history: HybridHistoryConfig = Field(default_factory=HybridHistoryConfig)
     backbone: TransformerStageConfig
     diffusion_head: TransformerStageConfig
