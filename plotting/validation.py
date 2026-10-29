@@ -1,16 +1,13 @@
 import math
-from html import escape
 from pathlib import Path
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 from beartype import beartype
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
-from scipy.io.wavfile import write as write_wave
 from torch import Tensor
 from architecture.pretraining.encoder_types import FrozenEncoderConfig
-from evaluation.types import ValidationRequest, ValidationResult
+from evaluation.evaluation_types import ValidationResult
 
 
 @torch.no_grad()
@@ -102,7 +99,6 @@ def render_sample_mean(
     directory: Path,
     video: Float[Tensor, "one time patch video_feature"],
     audio: Float[Tensor, "one time audio_feature"],
-    waveform: Float[Tensor, "one channel sample"],
     context: int,
     config: FrozenEncoderConfig,
     seed: int,
@@ -126,39 +122,24 @@ def render_sample_mean(
         audio_mean.shape[1] * block_seconds,
         n_futures,
     )
-    write_wave(
-        directory / "reference.wav", config.sample_rate, np.ascontiguousarray(waveform[0].float().cpu().numpy().T)
-    )
 
 
-def write_validation_review(directory: Path, request: ValidationRequest, result: ValidationResult) -> None:
-    sections = [
-        f"<h1>Pretraining validation, step {result.global_step}</h1>",
-        f"<p>{result.evaluated_windows} eligible windows evaluated; {result.rejected_input_windows} native input rejections retained from {result.candidate_windows_accounted} candidates. {result.n_futures} futures, {result.integration_steps} solver steps, grid shift {result.grid_shift:g}. Ground-truth historical and supplied future actions are inputs.</p>",
-        "<table><tr><th>Corpus</th><th>Candidates</th><th>Evaluated</th><th>Rejected</th><th>Video sample MSE</th><th>Audio sample MSE</th><th>Flow loss</th></tr>",
-    ]
-    for corpus, group in sorted(result.per_corpus.items()):
-        metrics = [
-            f"{group.mean[key]:.6g}" if key in group.mean else "—"
-            for key in (
-                "video/mean_sample_mse",
-                "audio/mean_sample_mse",
-                "flow/unweighted_flow_loss",
-            )
-        ]
-        sections.append(
-            f"<tr><td>{escape(corpus)}</td><td>{group.candidate_windows}</td><td>{group.evaluated_windows}</td><td>{group.rejected_input_windows}</td>"
-            + "".join(f"<td>{value}</td>" for value in metrics)
-            + "</tr>"
-        )
-    sections.append("</table>")
-    for corpus, index in sorted(result.examples.items()):
-        relative = f"shard_{index // request.shard_windows:05d}/example_{index:07d}"
-        sections.append(
-            f"<h2>{escape(corpus)}</h2><p>Minimum eligible index {index}; sample means are not individual-future fidelity. Reference audio only.</p>"
-            f'<img width="100%" src="{relative}/video_latent_pca.png"><img width="100%" src="{relative}/audio_latents.png"><audio controls src="{relative}/reference.wav"></audio>'
-        )
-    (directory / "review.html").write_text(
-        '<!doctype html><meta charset="utf-8"><style>body{max-width:1100px;margin:2rem auto;font:16px system-ui}td,th{padding:.5rem;text-align:left}</style>'
-        + "".join(sections)
+def render_validation_summary(directory: Path, result: ValidationResult) -> None:
+    corpora = sorted(result.per_corpus)
+    metrics = {
+        "Video sample MSE": "video/mean_sample_mse",
+        "Audio sample MSE": "audio/mean_sample_mse",
+        "Flow loss": "flow/unweighted_flow_loss",
+    }
+    figure, axes = plt.subplots(1, len(metrics), figsize=(5 * len(metrics), 4), squeeze=False)
+    for column, (title, key) in enumerate(metrics.items()):
+        axes[0, column].bar(corpora, [result.per_corpus[corpus].mean.get(key, float("nan")) for corpus in corpora])
+        axes[0, column].set_title(title)
+        axes[0, column].tick_params(axis="x", rotation=45)
+    figure.suptitle(
+        f"Pretraining validation, step {result.global_step}: {result.evaluated_windows} windows, "
+        f"{result.n_futures} futures, {result.integration_steps} solver steps"
     )
+    figure.tight_layout()
+    figure.savefig(directory / "review.png", dpi=130)
+    plt.close(figure)

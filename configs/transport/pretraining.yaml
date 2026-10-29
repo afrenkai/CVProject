@@ -1,5 +1,4 @@
 noise_standard_deviation: 1.0
-audio_delay: 0.0
 sde_diffusion_scale: 1.0
 time_distribution:
   type: uniform

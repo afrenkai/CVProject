@@ -3,8 +3,8 @@ from typing import cast
 import torch
 from omegaconf import DictConfig, OmegaConf
 from training.pretraining.models import build_pretraining_models
-from training.pretraining.types import PretrainingModels
-from training.types import Checkpoint, ModelModules
+from training.pretraining.pretraining_types import PretrainingModels
+from training.training_types import Checkpoint, ModelModules
 
 
 def save_checkpoint(path: Path, modules: ModelModules) -> Path:
@@ -22,7 +22,6 @@ def load_checkpoint(path: Path, modules: ModelModules) -> None:
         module.load_state_dict(checkpoint[name])
 
 
-#TODO: reduce this redundant logic. kinda ugly but bundled tg for now
 def save_pretraining_checkpoint(directory: Path, models: PretrainingModels, config: DictConfig) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
     OmegaConf.save(config, directory / "config.yaml", resolve=True)

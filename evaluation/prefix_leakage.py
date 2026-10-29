@@ -3,7 +3,7 @@ from beartype import beartype
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 from architecture.pretraining.encoder_types import FrozenEncoderConfig, PrefixEncoder
-from evaluation.types import PrefixCheckConfig, PrefixIntervention
+from evaluation.evaluation_types import PrefixCheckConfig, PrefixIntervention
 
 
 @torch.no_grad()

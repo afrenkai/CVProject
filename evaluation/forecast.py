@@ -4,7 +4,7 @@ import torch
 from beartype import beartype
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor
-from evaluation.types import (
+from evaluation.evaluation_types import (
     ForecastReview,
     ForecastStatistics,
     ForecastSummary,
@@ -12,7 +12,7 @@ from evaluation.types import (
 from training.pretraining.objective import PretrainingObjective
 from transport.flow import AudioVisualFlowTransport
 from transport.solvers import solve_flow_map
-from transport.types import ForecastConfig
+from transport.transport_types import ForecastConfig
 
 
 class ForecastMoments:
@@ -107,6 +107,7 @@ def forecast_window(
                 integration_grid=transport.time_grid(config.integration_steps, video_noise),
                 diagonal=True,
             )
+        prediction_video = transport.video_frames(prediction_video, context_video)
         video_moments.update(prediction_video)
         audio_moments.update(prediction_audio)
     if video.is_cuda:
@@ -116,6 +117,8 @@ def forecast_window(
         review(video_moments.mean, audio_moments.mean)
     return ForecastSummary(
         n_futures=config.n_futures,
+        integration_steps=config.integration_steps,
+        grid_shift=config.grid_shift,
         video=video_moments.summary(),
         audio=audio_moments.summary(),
         seeds=seeds,

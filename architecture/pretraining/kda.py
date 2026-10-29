@@ -32,20 +32,13 @@ def chunk_kimi_delta_attention(
         key_dimension,
         value_dimension,
     )
-    # little check for device across torch since I don't want to wantonly cast to and across devices, esp since we have DDP for n=2
-    invalid_state = initial_state is not None and (
-        initial_state.shape != expected_state_shape
-        or initial_state.device != queries.device
-    )
-    if invalid_state:
-        raise ValueError(
-            f"Expected KDA state {expected_state_shape} on {queries.device}"
-        )
+    if initial_state is not None and (
+        initial_state.shape != expected_state_shape or initial_state.device != queries.device
+    ):
+        raise ValueError(f"Expected KDA state {expected_state_shape} on {queries.device}")
 
     state = (
-        queries.new_zeros(expected_state_shape, dtype=torch.float32)
-        if initial_state is None
-        else initial_state.float()
+        queries.new_zeros(expected_state_shape, dtype=torch.float32) if initial_state is None else initial_state.float()
     )
     output_chunks: list[Tensor] = []
     for chunk_start in range(0, time_steps, chunk_size):
@@ -73,15 +66,8 @@ def chunk_kimi_delta_attention(
         ).float()
         cumulative_log_decay = torch.cumsum(chunk_log_decay, dim=2)
         current_chunk_size = chunk_end - chunk_start
-        # same as regular attn causal masking, i.e. for 3 tok (seq) at t=1:
-        """
-             | x -inf -inf
-        Q    | x     x -inf
-             | x    x    x
 
-            K
-        """
-        # if tr, can do a tril like we do
+        # Causal mask: position i can only attend to positions j <= i within the chunk.
         causal_mask = torch.ones(
             current_chunk_size,
             current_chunk_size,
@@ -89,9 +75,11 @@ def chunk_kimi_delta_attention(
             device=queries.device,
         ).tril()
 
-        relative_log_decay = (
-            cumulative_log_decay[:, :, :, None] - cumulative_log_decay[:, :, None]
-        ).masked_fill(~causal_mask[None, None, :, :, None], 0.0)
+        # Decay-weighted key correlation matrix D[i,j] = decay(i->j) * k_i^T k_j,
+        # used to form the triangular system that disentangles overlapping write ops.
+        relative_log_decay = (cumulative_log_decay[:, :, :, None] - cumulative_log_decay[:, :, None]).masked_fill(
+            ~causal_mask[None, None, :, :, None], 0.0
+        )
         key_correlations = einsum(
             chunk_keys,
             chunk_keys,
@@ -99,29 +87,17 @@ def chunk_kimi_delta_attention(
             "batch head current key, batch head previous key, "
             "batch head current previous key -> batch head current previous",
         )
+        # Triangular system (I + w * L) x = b isolates each token's net contribution
+        # to the recurrent state, removing double-counting from earlier writes.
         strict_lower_correlations = torch.tril(key_correlations, diagonal=-1)
-        identity = torch.eye(
-            current_chunk_size, dtype=torch.float32, device=queries.device
-        )
-        triangular_system = (
-            identity[None, None]
-            + chunk_write_strength[..., None] * strict_lower_correlations
-        )
+        identity = torch.eye(current_chunk_size, dtype=torch.float32, device=queries.device)
+        triangular_system = identity[None, None] + chunk_write_strength[..., None] * strict_lower_correlations
         weighted_values = chunk_write_strength[..., None] * chunk_values
-        weighted_keys = (
-            chunk_write_strength[..., None]
-            * torch.exp(cumulative_log_decay)
-            * chunk_keys
-        )
+        weighted_keys = chunk_write_strength[..., None] * torch.exp(cumulative_log_decay) * chunk_keys
+        transformed_values = torch.linalg.solve_triangular(triangular_system, weighted_values, upper=False)
+        transformed_keys = torch.linalg.solve_triangular(triangular_system, weighted_keys, upper=False)
 
-        # lol uh idk how to do this faster on our hardware
-        transformed_values = torch.linalg.solve_triangular(
-            triangular_system, weighted_values, upper=False
-        )
-        transformed_keys = torch.linalg.solve_triangular(
-            triangular_system, weighted_keys, upper=False
-        )
-
+        # Within-chunk attention: standard decay-weighted dot-product, causal.
         within_chunk_attention = einsum(
             chunk_queries,
             chunk_keys,
@@ -130,21 +106,21 @@ def chunk_kimi_delta_attention(
             "batch head current previous key -> batch head current previous",
         )
         within_chunk_attention = torch.tril(within_chunk_attention)
+
+        # pseudo_values corrects for the portion of transformed_values already
+        # captured in the carry state from previous chunks.
         pseudo_values = transformed_values - torch.matmul(transformed_keys, state)
         previous_state_output = einsum(
             chunk_queries * torch.exp(cumulative_log_decay),
             state,
             "batch head chunk key, batch head key value -> " "batch head chunk value",
         )
-        output_chunks.append(
-            previous_state_output + torch.matmul(within_chunk_attention, pseudo_values)
-        )
+        output_chunks.append(previous_state_output + torch.matmul(within_chunk_attention, pseudo_values))
 
+        # Roll state forward: decay existing entries, then accumulate this chunk's writes.
         final_log_decay = cumulative_log_decay[:, :, -1]
         state = state * torch.exp(final_log_decay[..., None])
-        keys_at_chunk_end = chunk_keys * torch.exp(
-            final_log_decay[:, :, None] - cumulative_log_decay
-        )
+        keys_at_chunk_end = chunk_keys * torch.exp(final_log_decay[:, :, None] - cumulative_log_decay)
         state = state + einsum(
             keys_at_chunk_end,
             pseudo_values,
@@ -169,48 +145,31 @@ class KimiDeltaAttention(nn.Module):
     ) -> None:
         super().__init__()
         invalid_configuration = (
-            hidden_dimension <= 0
-            or heads <= 0
-            or head_dimension <= 0
-            or chunk_size <= 0
-            or minimum_log_decay >= 0.0
+            hidden_dimension <= 0 or heads <= 0 or head_dimension <= 0 or chunk_size <= 0 or minimum_log_decay >= 0.0
         )
         if invalid_configuration:
-            raise ValueError(
-                "KDA dimensions and chunk size must be positive; decay must be negative"
-            )
+            raise ValueError("KDA dimensions and chunk size must be positive; decay must be negative")
 
         projection_dimension = heads * head_dimension
         self.heads = heads
         self.head_dimension = head_dimension
         self.chunk_size = chunk_size
         self.minimum_log_decay = minimum_log_decay
-        self.query_projection = nn.Linear(
-            hidden_dimension, projection_dimension, bias=False
-        )
-        self.key_projection = nn.Linear(
-            hidden_dimension, projection_dimension, bias=False
-        )
-        self.value_projection = nn.Linear(
-            hidden_dimension, projection_dimension, bias=False
-        )
+        self.query_projection = nn.Linear(hidden_dimension, projection_dimension, bias=False)
+        self.key_projection = nn.Linear(hidden_dimension, projection_dimension, bias=False)
+        self.value_projection = nn.Linear(hidden_dimension, projection_dimension, bias=False)
         self.decay_projection = nn.Sequential(
             nn.Linear(hidden_dimension, head_dimension, bias=False),
             nn.Linear(head_dimension, projection_dimension, bias=False),
         )
         self.write_projection = nn.Linear(hidden_dimension, heads, bias=False)
-        self.output_gate_projection = nn.Linear(
-            hidden_dimension, projection_dimension, bias=False
-        )
+        self.output_gate_projection = nn.Linear(hidden_dimension, projection_dimension, bias=False)
         self.output_norm = nn.RMSNorm(head_dimension)
-        self.output_projection = nn.Linear(
-            projection_dimension, hidden_dimension, bias=False
-        )
+        self.output_projection = nn.Linear(projection_dimension, hidden_dimension, bias=False)
 
         self.log_decay_scale = nn.Parameter(torch.zeros(heads))
         time_step = torch.exp(
-            torch.rand(heads, head_dimension) * (math.log(0.1) - math.log(0.001))
-            + math.log(0.001)
+            torch.rand(heads, head_dimension) * (math.log(0.1) - math.log(0.001)) + math.log(0.001)
         ).clamp(min=0.0001)
         self.decay_bias = nn.Parameter(time_step + torch.log(-torch.expm1(-time_step)))
 
@@ -239,7 +198,6 @@ class KimiDeltaAttention(nn.Module):
             head=self.heads,
         )
 
-        # lazy bum doesnt use his own normalization fns
         queries = F.normalize(F.silu(queries), dim=-1)
         keys = F.normalize(F.silu(keys), dim=-1)
         values = F.silu(values)
@@ -250,8 +208,7 @@ class KimiDeltaAttention(nn.Module):
             head=self.heads,
         ).float()
         log_decay = self.minimum_log_decay * torch.sigmoid(
-            torch.exp(self.log_decay_scale)[None, None, :, None]
-            * (decay_logits + self.decay_bias[None, None])
+            torch.exp(self.log_decay_scale)[None, None, :, None] * (decay_logits + self.decay_bias[None, None])
         )
         write_strength = torch.sigmoid(self.write_projection(tokens).float())
         output, state = chunk_kimi_delta_attention(
@@ -272,7 +229,5 @@ class KimiDeltaAttention(nn.Module):
             )
         )
         output = self.output_norm(output) * output_gate
-        output = self.output_projection(
-            rearrange(output, "batch time head channel -> batch time (head channel)")
-        )
+        output = self.output_projection(rearrange(output, "batch time head channel -> batch time (head channel)"))
         return output, state

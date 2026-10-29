@@ -8,7 +8,7 @@ from architecture.pretraining.encoder_types import EncodeFeatures
 from architecture.pretraining.normalization import AudioVisualNormalizer
 from architecture.pretraining.recorded_controls import RecordedControlEncoder
 from losses.flow import flow_matching_terms
-from losses.types import FlowLossConfig
+from losses.loss_types import FlowLossConfig
 from train_datasets.control_types import ControlEncoderConfig
 from transport.flow import AudioVisualFlowTransport
 

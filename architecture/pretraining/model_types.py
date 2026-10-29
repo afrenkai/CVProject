@@ -9,17 +9,13 @@ from pydantic import (
 )
 
 type ActionAudioConditioning = Literal["transition", "past_only"]
+type FlowPrediction = Literal["velocity", "data"]
 
 
 class HybridHistoryConfig(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    block_pattern: tuple[Literal["kda"], Literal["kda"], Literal["kda"], Literal["softmax"]] = (
-        "kda",
-        "kda",
-        "kda",
-        "softmax",
-    )
+    block_pattern: tuple[Literal["kda", "softmax"], ...] = ("kda", "kda", "kda", "softmax")
     chunk_size: PositiveInt = 16
     minimum_log_decay: float = Field(default=-5.0, lt=0.0)
 
@@ -30,11 +26,14 @@ class TransformerStageConfig(BaseModel):
     hidden_dimension: PositiveInt
     heads: PositiveInt
     layers: PositiveInt
+    key_value_heads: PositiveInt | None = None
 
     @model_validator(mode="after")
     def validate_attention_heads(self) -> Self:
         if self.hidden_dimension % self.heads:
             raise ValueError("Transformer hidden dimension must be divisible by its head count")
+        if self.key_value_heads is not None and self.heads % self.key_value_heads:
+            raise ValueError("Transformer head count must be a multiple of its key-value head count")
         return self
 
 
@@ -55,6 +54,8 @@ class WorldModelConfig(BaseModel):
     action_dimension: PositiveInt
     backbone_attention: Literal["quadratic", "linear", "hybrid_kda"] = "quadratic"
     noise_time_embedding: Literal["sinusoidal", "gaussian_fourier"] = "sinusoidal"
+    prediction: FlowPrediction = "velocity"
+    attention_window: PositiveInt | None = None
     spatial_grid: tuple[PositiveInt, PositiveInt] | None = None
     audio_tokens: AudioTokenConfig = Field(default_factory=AudioTokenConfig)
     hybrid_history: HybridHistoryConfig = Field(default_factory=HybridHistoryConfig)

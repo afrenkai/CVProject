@@ -8,7 +8,7 @@ from architecture.pretraining.normalization import AudioVisualNormalizer
 from architecture.pretraining.recorded_controls import RecordedControlEncoder
 from architecture.pretraining.video.encoder import DinoVideoEncoder
 from architecture.pretraining.video.video_decoder import DinoVideoDecoder
-from training.types import ModelModules
+from training.training_types import ModelModules
 
 
 @dataclass

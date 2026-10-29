@@ -4,11 +4,11 @@ from diffusers.models.embeddings import get_2d_sincos_pos_embed
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
 from torch import Tensor, nn
+from architecture.pretraining.model_types import AudioTokenConfig
 from architecture.pretraining.transformers import (
     frame_position_embeddings,
     sinusoidal_timestep_embedding,
 )
-from architecture.pretraining.types import AudioTokenConfig
 
 
 class AudioVisualTokenProjector(nn.Module):

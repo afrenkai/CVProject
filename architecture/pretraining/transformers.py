@@ -29,16 +29,19 @@ def frame_position_embeddings(
 
 # in general, referred to https://docs.pytorch.org/docs/master/generated/torch.nn.MultiheadAttention.html for this
 class MultiHeadAttention(nn.Module):
-    def __init__(self, dimension: int, heads: int, dropout: float = 0.0) -> None:
+    def __init__(self, dimension: int, heads: int, dropout: float = 0.0, key_value_heads: int | None = None) -> None:
         super().__init__()
         if dimension % heads:
             raise ValueError("Attention dimension must be divisible by its head count")
         self.heads = heads
+        self.key_value_heads = key_value_heads or heads
+        if heads % self.key_value_heads:
+            raise ValueError("Query heads must be a multiple of key-value heads")
         self.head_dimension = dimension // heads
         self.dropout = dropout
         self.query_projection = nn.Linear(dimension, dimension)
-        self.key_projection = nn.Linear(dimension, dimension)
-        self.value_projection = nn.Linear(dimension, dimension)
+        self.key_projection = nn.Linear(dimension, self.key_value_heads * self.head_dimension)
+        self.value_projection = nn.Linear(dimension, self.key_value_heads * self.head_dimension)
         self.query_norm = nn.RMSNorm(self.head_dimension)
         self.key_norm = nn.RMSNorm(self.head_dimension)
         self.output_projection = nn.Linear(dimension, dimension)
@@ -75,13 +78,13 @@ class MultiHeadAttention(nn.Module):
             rearrange(
                 self.key_projection(key),
                 "batch key (head channel) -> batch head key channel",
-                head=self.heads,
+                head=self.key_value_heads,
             )
         )
         value_tokens = rearrange(
             self.value_projection(value),
             "batch key (head channel) -> batch head key channel",
-            head=self.heads,
+            head=self.key_value_heads,
         )
         attended = F.scaled_dot_product_attention(
             query_tokens,
@@ -89,6 +92,7 @@ class MultiHeadAttention(nn.Module):
             value_tokens,
             attn_mask=attention_mask,
             dropout_p=self.dropout if self.training else 0.0,
+            enable_gqa=self.key_value_heads != self.heads,
         )
         attended = rearrange(
             attended,
@@ -210,10 +214,11 @@ class AdaptiveAttentionBlock(nn.Module):
         heads: int,
         mlp_ratio: float,
         dropout: float,
+        key_value_heads: int | None = None,
     ) -> None:
         super().__init__()
-        self.self_attention = MultiHeadAttention(dimension, heads, dropout)
-        self.cross_attention = MultiHeadAttention(dimension, heads, dropout)
+        self.self_attention = MultiHeadAttention(dimension, heads, dropout, key_value_heads)
+        self.cross_attention = MultiHeadAttention(dimension, heads, dropout, key_value_heads)
         self.feed_forward = SwiGLUFeedForward(dimension, mlp_ratio, dropout)
         self.self_norm = nn.RMSNorm(dimension, elementwise_affine=False)
         self.cross_norm = nn.RMSNorm(dimension, elementwise_affine=False)

@@ -4,13 +4,13 @@ from architecture.av_model import AudioVisualFlowPredictor
 from architecture.pretraining.audio.audio_decoder import CausalAudioDecoder
 from architecture.pretraining.audio.encoder import HybridAudioEncoder
 from architecture.pretraining.latent_actions import LatentActionModel
+from architecture.pretraining.model_types import WorldModelConfig
 from architecture.pretraining.normalization import AudioVisualNormalizer
 from architecture.pretraining.recorded_controls import RecordedControlEncoder
-from architecture.pretraining.types import WorldModelConfig
 from architecture.pretraining.video.encoder import DinoVideoEncoder
 from architecture.pretraining.video.video_decoder import DinoVideoDecoder
 from train_datasets.control_types import ControlEncoderConfig
-from training.pretraining.types import PretrainingModels
+from training.pretraining.pretraining_types import PretrainingModels
 
 
 def build_flow_predictor(
@@ -36,6 +36,10 @@ def build_flow_predictor(
         config.noise_time_embedding,
         config.spatial_grid,
         config.audio_tokens,
+        config.prediction,
+        config.backbone.key_value_heads,
+        config.diffusion_head.key_value_heads,
+        config.attention_window,
     ).to(device)
 
 

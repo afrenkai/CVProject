@@ -2,11 +2,11 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Literal, Self, TypedDict
-from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveInt, model_validator
+from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt, model_validator
 from torch import Tensor
-from configs.types import FiniteModel, FrozenModel
+from configs.config_types import FiniteModel, FrozenModel
 from training.pretraining.configuration import AllocationRuntime
-from transport.types import ForecastConfig
+from transport.transport_types import ForecastConfig
 
 type ForecastReview = Callable[[Tensor, Tensor], None]
 
@@ -24,8 +24,8 @@ class ForecastSummary(FiniteModel):
     video: ForecastStatistics
     audio: ForecastStatistics
     n_futures: PositiveInt
-    integration_steps: Literal[16] = 16
-    grid_shift: Literal[4.0] = 4.0
+    integration_steps: PositiveInt
+    grid_shift: PositiveFloat
     seeds: list[NonNegativeInt]
     recorded_action_conditioning: bool
     sampling_seconds: float = Field(ge=0)

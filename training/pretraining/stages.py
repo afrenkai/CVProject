@@ -9,9 +9,7 @@ from architecture.pretraining.audio.audio_decoder import CausalAudioDecoder
 from architecture.pretraining.audio.encoder import HybridAudioEncoder
 from architecture.pretraining.latent_actions import LatentActionModel
 from architecture.pretraining.video.video_decoder import DinoVideoDecoder
-from losses.audio import audio_reconstruction_loss
-from losses.av import flow_matching_loss, slim_lsd_loss
-from losses.video import video_reconstruction_loss
+from losses.av import audio_reconstruction_loss, flow_matching_loss, slim_lsd_loss, video_reconstruction_loss
 from transport.flow import AudioVisualFlowTransport
 
 
@@ -98,7 +96,6 @@ def pretrain_latent_world_model(
 ) -> tuple[list[float], list[float], Int[Tensor, "batch target_time"]]:
     if not latent_examples or iterations <= 0 or checkpoint_interval <= 0:
         raise ValueError("World-model pretraining requires latent examples and positive iterations")
-    # TODO: ablate optimizers, muon first
     optimizer = torch.optim.AdamW(
         [*predictor.parameters(), *latent_action_model.parameters()],
         lr=learning_rate,

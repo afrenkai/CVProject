@@ -1,6 +1,6 @@
 from pathlib import Path
 from pydantic import PositiveInt
-from configs.types import FrozenModel
+from configs.config_types import FrozenModel
 
 type InputEvent = dict[str, str | int | float | bool]
 

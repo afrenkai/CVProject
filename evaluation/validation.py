@@ -14,8 +14,7 @@ from safetensors.torch import load_model
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Subset
 from architecture.pretraining.joint_encoder import JointEncoder
-from evaluation.forecast import forecast_window
-from evaluation.types import (
+from evaluation.evaluation_types import (
     BestValidation,
     EvaluatedWindow,
     FlowMetrics,
@@ -30,7 +29,8 @@ from evaluation.types import (
     ValidationResult,
     WindowIdentity,
 )
-from plotting.validation import render_sample_mean, write_validation_review
+from evaluation.forecast import forecast_window
+from plotting.validation import render_sample_mean, render_validation_summary
 from train_datasets.corpus_dataset import read_corpus_window
 from train_datasets.corpus_types import CorpusWindow
 from train_datasets.manifests import window_corpus
@@ -217,7 +217,6 @@ class ValidationEvaluator:
                 directory=self.directory / f"example_{identity.index:07d}",
                 video=video,
                 audio=audio,
-                waveform=batch["waveform"],
                 context=objective.context_steps,
                 config=config.encoder,
                 seed=config.trainer.seed,
@@ -368,9 +367,7 @@ def stable_examples(directory: Path, request: ValidationRequest, records: list[V
             continue
         assert record.visual_example
         example = directory / f"shard_{record.index // request.shard_windows:05d}" / f"example_{record.index:07d}"
-        assert all(
-            (example / name).is_file() for name in ("video_latent_pca.png", "audio_latents.png", "reference.wav")
-        )
+        assert all((example / name).is_file() for name in ("video_latent_pca.png", "audio_latents.png"))
         examples[record.dataset] = record.index
     return examples
 
@@ -451,7 +448,7 @@ def run_collection(settings: ValidationConfig) -> ValidationResult:
             **accounting,
         },
     )
-    write_validation_review(directory, request, result)
+    render_validation_summary(directory, result)
     if not eligibility_path.exists():
         write_yaml(eligibility_path, eligibility.model_dump(mode="json"))
     if selected:

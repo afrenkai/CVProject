@@ -7,12 +7,12 @@ from torch import Tensor, nn
 from torch.utils.checkpoint import checkpoint
 from architecture.pretraining.ddt import AudioVisualDDTHead
 from architecture.pretraining.history_mixer import AudioVisualHistoryMixer
+from architecture.pretraining.model_types import AudioTokenConfig, HybridHistoryConfig
 from architecture.pretraining.tokens import AudioVisualTokenProjector
 from architecture.pretraining.transformers import (
     AdaptiveAttentionBlock,
     sinusoidal_timestep_embedding,
 )
-from architecture.pretraining.types import AudioTokenConfig, HybridHistoryConfig
 
 
 class AudioVisualFlowPredictor(nn.Module):
@@ -34,6 +34,10 @@ class AudioVisualFlowPredictor(nn.Module):
         noise_time_embedding: str = "sinusoidal",
         spatial_grid: tuple[int, int] | None = None,
         audio_tokens: AudioTokenConfig | None = None,
+        prediction: str = "velocity",
+        backbone_key_value_heads: int | None = None,
+        diffusion_head_key_value_heads: int | None = None,
+        attention_window: int | None = None,
     ) -> None:
         super().__init__()
         self.activation_checkpointing = False
@@ -42,6 +46,10 @@ class AudioVisualFlowPredictor(nn.Module):
         if noise_time_embedding not in {"sinusoidal", "gaussian_fourier"}:
             raise ValueError("Unknown noise time embedding")
         self.noise_time_embedding = noise_time_embedding
+        if prediction not in {"velocity", "data"}:
+            raise ValueError("Unknown flow prediction target")
+        self.prediction = prediction
+        self.attention_window = attention_window
         self.noise_time_projection = (
             GaussianFourierProjection(
                 backbone_hidden_dimension // 2,
@@ -97,6 +105,7 @@ class AudioVisualFlowPredictor(nn.Module):
                 backbone_heads,
                 mlp_ratio,
                 dropout,
+                backbone_key_value_heads,
             )
             for layer_index in range(backbone_layers if backbone_attention != "hybrid_kda" else 0)
         )
@@ -125,6 +134,7 @@ class AudioVisualFlowPredictor(nn.Module):
             dropout,
             spatial_grid,
             self.audio_tokens,
+            diffusion_head_key_value_heads,
         )
 
     @jaxtyped(typechecker=beartype)
@@ -218,6 +228,8 @@ class AudioVisualFlowPredictor(nn.Module):
             token=tokens_per_step,
         )
         attention_mask = frame_indices[None, :] <= frame_indices[:, None]
+        if self.attention_window is not None:
+            attention_mask = attention_mask & (frame_indices[:, None] - frame_indices[None, :] < self.attention_window)
         condition = self.start_time_embedding(self.noise_time_features(start_time))
         condition = condition + self.duration_embedding(self.noise_time_features(end_time - start_time))
         if self.backbone_attention in {"linear", "hybrid_kda"}:
@@ -255,7 +267,7 @@ class AudioVisualFlowPredictor(nn.Module):
                 else:
                     targets = block(targets, context, global_condition, attention_mask)
 
-        return self.diffusion_head(
+        video_output, audio_output = self.diffusion_head(
             noisy_video,
             noisy_audio,
             context_video,
@@ -264,4 +276,11 @@ class AudioVisualFlowPredictor(nn.Module):
             targets,
             condition,
             attention_mask,
+        )
+        if self.prediction == "velocity":
+            return video_output, audio_output
+        remaining = (1.0 - start_time).clamp_min(0.05)
+        return (
+            (video_output - noisy_video) / rearrange(remaining, "batch -> batch 1 1 1"),
+            (audio_output - noisy_audio) / rearrange(remaining, "batch -> batch 1 1"),
         )

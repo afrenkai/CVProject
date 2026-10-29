@@ -7,7 +7,7 @@ from transformers import (
     TrainerState,
     TrainingArguments,
 )
-from evaluation.types import ValidationRequest
+from evaluation.evaluation_types import ValidationRequest
 from training.pretraining.configuration import PretrainingConfig, PretrainingSchedule
 
 

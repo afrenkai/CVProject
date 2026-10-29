@@ -50,7 +50,7 @@ def sample_chunk(
     )
     integration_grid = transport.time_grid(integration_steps, context_video)
     if stochastic:
-        return solve_sde(
+        sampled_video, sampled_audio = solve_sde(
             predictor,
             video_state,
             audio_state,
@@ -58,20 +58,21 @@ def sample_chunk(
             context_audio,
             actions,
             integration_grid,
-            transport.config.audio_delay,
             transport.config.noise_standard_deviation,
             transport.config.sde_diffusion_scale,
         )
-    return solve_flow_map(
-        predictor,
-        video_state,
-        audio_state,
-        context_video,
-        context_audio,
-        actions,
-        integration_grid,
-        diagonal,
-    )
+    else:
+        sampled_video, sampled_audio = solve_flow_map(
+            predictor,
+            video_state,
+            audio_state,
+            context_video,
+            context_audio,
+            actions,
+            integration_grid,
+            diagonal,
+        )
+    return transport.video_frames(sampled_video, context_video), sampled_audio
 
 
 @torch.no_grad()

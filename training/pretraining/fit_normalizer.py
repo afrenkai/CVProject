@@ -1,18 +1,31 @@
 from collections import Counter
+from pathlib import Path
 import hydra
 import torch
 from hydra.utils import instantiate
 from omegaconf import DictConfig, OmegaConf
+from pydantic import Field, NonNegativeInt, PositiveFloat, PositiveInt
 from torch.utils.data import DataLoader
 from architecture.pretraining.joint_encoder import JointEncoder
+from evaluation.evaluation_types import PrefixCheckConfig
 from evaluation.prefix_leakage import assert_prefix_independence
 from train_datasets.calibration import calibration_windows
 from train_datasets.corpus_dataset import CorpusWindows
 from train_datasets.manifests import window_corpus
 from train_datasets.records import read_windows, write_yaml
+from training.pretraining.configuration import FrozenInputConfig
 from training.pretraining.normalization import ActionStatistics, FeatureStatistics
-from training.pretraining.normalization_types import NormalizationConfig
 from training.runtime import cuda_device
+
+
+class NormalizationConfig(FrozenInputConfig):
+    windows: Path
+    output: Path
+    sample_windows: PositiveInt = 1024
+    workers: NonNegativeInt = 2
+    seed: NonNegativeInt = 67
+    minimum_standard_deviation: PositiveFloat = 0.000001
+    prefix_checks: PrefixCheckConfig = Field(default_factory=PrefixCheckConfig)
 
 
 @torch.no_grad()

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 from pydantic import NonNegativeInt, PositiveInt
-from configs.types import FrozenModel
+from configs.config_types import FrozenModel
 
 
 class NativeFramePacket(FrozenModel):

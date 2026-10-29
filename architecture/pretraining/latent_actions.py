@@ -4,7 +4,7 @@ from einops import einsum, reduce, repeat
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor, nn
 from torch.nn import functional as F
-from architecture.pretraining.types import ActionAudioConditioning
+from architecture.pretraining.model_types import ActionAudioConditioning
 
 
 class LatentActionModel(nn.Module):

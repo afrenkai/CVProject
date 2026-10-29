@@ -11,7 +11,7 @@ from transformers import (
     TrainerState,
     TrainingArguments,
 )
-from losses.types import LossReportingModel
+from losses.loss_types import LossReportingModel
 
 
 class PretrainingMetrics(TrainerCallback):

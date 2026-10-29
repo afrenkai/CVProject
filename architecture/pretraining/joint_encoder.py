@@ -25,7 +25,10 @@ class JointEncoder(nn.Module):
         ).to(device=device, dtype=torch.float32)
         self.audio_encoder = DashengAudioEncoder(config, device)
         self.eval().requires_grad_(False)
-        assert all(parameter.dtype == torch.float32 and not parameter.requires_grad for parameter in self.parameters())
+        assert all(
+            parameter.dtype == torch.float32 and not parameter.requires_grad
+            for parameter in self.parameters()
+        )
 
     @torch.no_grad()
     @jaxtyped(typechecker=beartype)
@@ -38,13 +41,28 @@ class JointEncoder(nn.Module):
         Float[Tensor, "batch time audio_feature"],
     ]:
         config = self.settings
-        assert not self.training and not self.video_encoder.training and not self.audio_encoder.training
-        context_samples = config.context_frames * config.sample_rate // config.video_rate
+        assert (
+            not self.training
+            and not self.video_encoder.training
+            and not self.audio_encoder.training
+        )
+        context_samples = (
+            config.context_frames * config.sample_rate // config.video_rate
+        )
         assert config.context_frames * config.sample_rate % config.video_rate == 0
-        assert frames.shape[1] >= config.context_frames and waveform.shape[-1] >= context_samples
-        with torch.autocast(frames.device.type, enabled=False):
-            observed_video = self.video_encoder(frames[:, : config.context_frames].float())
-            observed_audio = self.audio_encoder(waveform[..., :context_samples].float())
+        assert (
+            frames.shape[1] >= config.context_frames
+            and waveform.shape[-1] >= context_samples
+        )
+        with torch.autocast(
+            frames.device.type, dtype=torch.bfloat16, enabled=config.bfloat16
+        ):
+            observed_video = self.video_encoder(
+                frames[:, : config.context_frames].float()
+            ).float()
+            observed_audio = self.audio_encoder(
+                waveform[..., :context_samples].float()
+            ).float()
             video = rearrange(
                 observed_video,
                 "batch (time phase) patch feature -> batch time patch (phase feature)",
@@ -56,7 +74,11 @@ class JointEncoder(nn.Module):
                 channel=2,
                 phase=config.audio_tokens_per_step,
             )
-        assert video.shape[1] == audio.shape[1] == config.context_frames // config.video_frames_per_step
+        assert (
+            video.shape[1]
+            == audio.shape[1]
+            == config.context_frames // config.video_frames_per_step
+        )
         assert video.dtype == audio.dtype == torch.float32
         assert torch.isfinite(video).all() and torch.isfinite(audio).all()
         return video, audio
@@ -72,25 +94,36 @@ class JointEncoder(nn.Module):
         Float[Tensor, "batch time audio_feature"],
     ]:
         config = self.settings
-        assert not self.training and not self.video_encoder.training and not self.audio_encoder.training
+        assert (
+            not self.training
+            and not self.video_encoder.training
+            and not self.audio_encoder.training
+        )
         context_steps = config.context_frames // config.video_frames_per_step
         context_tokens = context_steps * config.audio_tokens_per_step
-        observed_video, observed_audio = self.encode_observed(frames, waveform)
-        with torch.autocast(frames.device.type, enabled=False):
-            complete_video = rearrange(
-                self.video_encoder(frames.float()),
+        context_samples = (
+            config.context_frames * config.sample_rate // config.video_rate
+        )
+        with torch.autocast(
+            frames.device.type, dtype=torch.bfloat16, enabled=config.bfloat16
+        ):
+            video = rearrange(
+                self.video_encoder(frames.float()).float(),
                 "batch (time phase) patch feature -> batch time patch (phase feature)",
                 phase=config.video_frames_per_step,
             )
-            complete_audio = self.audio_encoder(waveform.float())
-            future_audio = rearrange(
-                complete_audio[..., context_tokens:],
+            observed_audio, complete_audio = (
+                self.audio_encoder(waveform[..., :context_samples].float()).float(),
+                self.audio_encoder(waveform.float()).float(),
+            )
+            audio = rearrange(
+                torch.cat(
+                    (observed_audio, complete_audio[..., context_tokens:]), dim=-1
+                ),
                 "(batch channel) feature (time phase) -> batch time (channel phase feature)",
                 channel=2,
                 phase=config.audio_tokens_per_step,
             )
-            video = torch.cat((observed_video, complete_video[:, context_steps:]), dim=1)
-            audio = torch.cat((observed_audio, future_audio), dim=1)
         assert video.shape[:2] == audio.shape[:2]
         assert video.dtype == audio.dtype == torch.float32
         assert torch.isfinite(video).all() and torch.isfinite(audio).all()

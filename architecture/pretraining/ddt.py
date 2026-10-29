@@ -3,9 +3,9 @@ from einops import rearrange
 from torch import Tensor, nn
 from torch.nn import functional as F
 from torch.utils.checkpoint import checkpoint
+from architecture.pretraining.model_types import AudioTokenConfig
 from architecture.pretraining.tokens import AudioVisualTokenProjector
 from architecture.pretraining.transformers import AdaptiveAttentionBlock
-from architecture.pretraining.types import AudioTokenConfig
 
 
 class AdaptiveOutputProjection(nn.Module):
@@ -47,6 +47,7 @@ class AudioVisualDDTHead(nn.Module):
         dropout: float,
         spatial_grid: tuple[int, int] | None = None,
         audio_tokens: AudioTokenConfig | None = None,
+        key_value_heads: int | None = None,
     ) -> None:
         super().__init__()
         self.activation_checkpointing = False
@@ -72,7 +73,8 @@ class AudioVisualDDTHead(nn.Module):
         )
         self.condition_projection = nn.Linear(backbone_dimension, hidden_dimension)
         self.blocks = nn.ModuleList(
-            AdaptiveAttentionBlock(hidden_dimension, heads, mlp_ratio, dropout) for layer_index in range(layers)
+            AdaptiveAttentionBlock(hidden_dimension, heads, mlp_ratio, dropout, key_value_heads)
+            for layer_index in range(layers)
         )
         self.video_output = AdaptiveOutputProjection(
             hidden_dimension,

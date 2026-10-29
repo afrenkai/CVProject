@@ -8,11 +8,11 @@ from pydantic import (
     model_validator,
 )
 from architecture.pretraining.encoder_types import FrozenEncoderConfig
-from architecture.pretraining.types import WorldModelConfig
-from configs.types import FrozenModel
-from losses.types import FlowLossConfig
+from architecture.pretraining.model_types import WorldModelConfig
+from configs.config_types import FrozenModel
+from losses.loss_types import FlowLossConfig
 from train_datasets.corpus_types import CorpusConfig
-from transport.types import ForecastConfig, TransportConfig
+from transport.transport_types import ForecastConfig, TransportConfig
 
 
 class WindowFiles(FrozenModel):

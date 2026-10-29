@@ -4,7 +4,7 @@ from einops import rearrange, reduce
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 from architecture.av_model import AudioVisualFlowPredictor
-from losses.types import FlowLossTerms
+from losses.loss_types import FlowLossTerms
 from transport.flow import AudioVisualFlowTransport
 
 
@@ -22,6 +22,41 @@ def modality_mean_square(
 
 
 @jaxtyped(typechecker=beartype)
+def apply_modality_mask(
+    context_video: Float[Tensor, "batch context_time patch video_feature"],
+    context_audio: Float[Tensor, "batch context_time audio_feature"],
+    video_state: Float[Tensor, "batch time patch video_feature"],
+    audio_state: Float[Tensor, "batch time audio_feature"],
+    modality_presence: Float[Tensor, "batch 2"],
+    context_presence: Float[Tensor, "batch 2"] | None,
+) -> tuple[
+    Float[Tensor, "batch context_time patch video_feature"],
+    Float[Tensor, "batch context_time audio_feature"],
+    Float[Tensor, "batch time patch video_feature"],
+    Float[Tensor, "batch time audio_feature"],
+]:
+    """
+    Zero out absent modalities so the model cannot attend to missing streams.
+    @param modality_presence: binary tensor, dim 0 = video, dim 1 = audio
+    @param context_presence: optional separate mask for the context window
+    """
+    if not torch.all((modality_presence == 0) | (modality_presence == 1)) or not torch.all(
+        modality_presence.sum(-1) > 0
+    ):
+        raise ValueError("Every example must contain at least one declared observed modality")
+    video_mask = modality_presence[:, 0, None, None, None]
+    audio_mask = modality_presence[:, 1, None, None]
+    context_video = context_video * video_mask
+    context_audio = context_audio * audio_mask
+    video_state = video_state * video_mask
+    audio_state = audio_state * audio_mask
+    if context_presence is not None:
+        context_video = context_video * context_presence[:, 0, None, None, None]
+        context_audio = context_audio * context_presence[:, 1, None, None]
+    return context_video, context_audio, video_state, audio_state
+
+
+@jaxtyped(typechecker=beartype)
 def flow_matching_terms(
     transport: AudioVisualFlowTransport,
     predictor: AudioVisualFlowPredictor,
@@ -36,29 +71,20 @@ def flow_matching_terms(
     modality_presence: Float[Tensor, "batch 2"] | None = None,
     context_presence: Float[Tensor, "batch 2"] | None = None,
 ) -> FlowLossTerms:
-    assert video_loss_weight > 0 and audio_loss_weight > 0 and temporal_loss_weight >= 0
+    assert video_loss_weight > 0 and audio_loss_weight >= 0 and temporal_loss_weight >= 0
     assert 0 < context_steps < video_latents.shape[1]
     context_video = video_latents[:, :context_steps].detach()
     context_audio = audio_latents[:, :context_steps].detach()
     target_video = video_latents[:, context_steps:].detach()
     target_audio = audio_latents[:, context_steps:].detach()
+    target_video = transport.video_target(target_video, context_video)
     interpolant = transport.sample_interpolant(target_video, target_audio)
     video_state = interpolant.video_state
     audio_state = interpolant.audio_state
     if modality_presence is not None:
-        if not torch.all((modality_presence == 0) | (modality_presence == 1)) or not torch.all(
-            modality_presence.sum(-1) > 0
-        ):
-            raise ValueError("Every example must contain at least one declared observed modality")
-        video_mask = modality_presence[:, 0, None, None, None]
-        audio_mask = modality_presence[:, 1, None, None]
-        context_video = context_video * video_mask
-        context_audio = context_audio * audio_mask
-        video_state = video_state * video_mask
-        audio_state = audio_state * audio_mask
-    if context_presence is not None:
-        context_video = context_video * context_presence[:, 0, None, None, None]
-        context_audio = context_audio * context_presence[:, 1, None, None]
+        context_video, context_audio, video_state, audio_state = apply_modality_mask(
+            context_video, context_audio, video_state, audio_state, modality_presence, context_presence
+        )
     video_velocity, audio_velocity = predictor(
         video_state,
         audio_state,
@@ -74,7 +100,7 @@ def flow_matching_terms(
     video_temporal = video_loss.new_zeros(())
     audio_temporal = audio_loss.new_zeros(())
     if temporal_loss_weight > 0:
-        assert transport.config.audio_delay == 0.0 and target_video.shape[1] > 1
+        assert target_video.shape[1] > 1
         remaining = 1.0 - interpolant.time.float()
         projected_video = (
             interpolant.video_state.float() + rearrange(remaining, "batch -> batch 1 1 1") * video_velocity.float()

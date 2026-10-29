@@ -11,13 +11,11 @@ from transport.flow import AudioVisualFlowTransport
 
 
 def load_normalizer(config: PretrainingConfig) -> AudioVisualNormalizer:
-    video_dimension = config.encoder.video_feature_dimension * config.encoder.video_frames_per_step
-    audio_dimension = config.encoder.audio_feature_dimension * 2 * config.encoder.audio_tokens_per_step
     normalizer = AudioVisualNormalizer(
-        torch.zeros(video_dimension),
-        torch.ones(video_dimension),
-        torch.zeros(audio_dimension),
-        torch.ones(audio_dimension),
+        torch.zeros(config.encoder.video_latent_dimension),
+        torch.ones(config.encoder.video_latent_dimension),
+        torch.zeros(config.encoder.audio_latent_dimension),
+        torch.ones(config.encoder.audio_latent_dimension),
     )
     state: dict[str, Tensor] = torch.load(config.normalization.latents, map_location="cpu", weights_only=True)
     normalizer.load_state_dict(state)
@@ -30,9 +28,9 @@ def build_online_objective(
     config: PretrainingConfig, encode_features: EncodeFeatures, device: torch.device
 ) -> PretrainingObjective:
     assert config.world_model.backbone_attention == "quadratic"
-    video_dimension = config.encoder.video_feature_dimension * config.encoder.video_frames_per_step
-    audio_dimension = config.encoder.audio_feature_dimension * 2 * config.encoder.audio_tokens_per_step
-    predictor = build_flow_predictor(video_dimension, audio_dimension, config.world_model, device)
+    predictor = build_flow_predictor(
+        config.encoder.video_latent_dimension, config.encoder.audio_latent_dimension, config.world_model, device
+    )
     predictor.outcome_head.requires_grad_(False)
     predictor.linear_mixer.requires_grad_(False)
     predictor.noise_time_projection.requires_grad_(False)

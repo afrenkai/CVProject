@@ -4,13 +4,13 @@ from einops import rearrange
 from jaxtyping import Float, Int, jaxtyped
 from torch import Tensor, nn
 from architecture.pretraining.kda import KimiDeltaAttention
+from architecture.pretraining.model_types import HybridHistoryConfig
 from architecture.pretraining.transformers import (
     LinearAttention,
     MultiHeadAttention,
     SwiGLUFeedForward,
     frame_position_embeddings,
 )
-from architecture.pretraining.types import HybridHistoryConfig
 
 
 class HistoryMixerBlock(nn.Module):

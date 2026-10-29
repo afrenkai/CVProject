@@ -9,7 +9,7 @@ from pydantic import (
     PositiveInt,
 )
 from torch import Tensor
-from configs.types import FrozenModel
+from configs.config_types import FrozenModel
 from train_datasets.control_types import ControlLayout
 from train_datasets.input_types import InputStagingConfig
 
@@ -26,6 +26,7 @@ class SourceRecord(FrozenModel):
     prior_split: str | None = None
 
 
+
 class CorpusWindow(FrozenModel):
     source: SourceRecord
     start_seconds: float
@@ -35,7 +36,7 @@ class CorpusWindow(FrozenModel):
 class MediaWindowConfig(FrozenModel):
     frame_index_directory: Path | None = None
     input_staging: InputStagingConfig | None = None
-    video_decoder_threads: Literal[1, 2] = 2
+    video_decoder_threads: PositiveInt = 2
     image_size: PositiveInt = 128
     video_rate: PositiveInt = 30
     sample_rate: PositiveInt = 16000

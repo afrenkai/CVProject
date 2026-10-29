@@ -4,7 +4,7 @@ defaults:
   - backbones@encoder: frozen_av
   - _self_
 
-_target_: training.pretraining.normalization_types.NormalizationConfig
+_target_: training.pretraining.fit_normalizer.NormalizationConfig
 _convert_: all
 windows: /path/to/train/windows.yaml
 output: /path/to/output
