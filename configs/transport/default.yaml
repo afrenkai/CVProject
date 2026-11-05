@@ -1,8 +1,0 @@
-noise_standard_deviation: 1.0
-sde_diffusion_scale: 1.0
-
-time_distribution:
-  type: logit_normal
-  shift: 4.0
-  mean: 0.0
-  standard_deviation: 1.0

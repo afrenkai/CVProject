@@ -1,7 +1,0 @@
-noise_standard_deviation: 1.0
-sde_diffusion_scale: 1.0
-time_distribution:
-  type: uniform
-  shift: 1.0
-  mean: 0.0
-  standard_deviation: 1.0

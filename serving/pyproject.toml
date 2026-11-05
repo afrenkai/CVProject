@@ -1,0 +1,18 @@
+[project]
+name = "speakup-serving"
+version = "0.1.0"
+description = "SGLang serving environment for the SpeakUp world model"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "project",
+    "sglang[diffusion]==0.5.23",
+    "msgpack",
+    "httpx",
+]
+
+[tool.uv]
+package = false
+override-dependencies = ["av==19.0.1"]
+
+[tool.uv.sources]
+project = { path = "..", editable = true }

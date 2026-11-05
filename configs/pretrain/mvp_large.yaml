@@ -1,0 +1,10 @@
+inherit: [mvp.yaml]
+
+model:
+  backbone: {hidden_dimension: 1024, heads: 16, layers: 12}
+  diffusion_head: {hidden_dimension: 2048, heads: 16, layers: 2}
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_v1
+  batch_size: 16
+  gradient_accumulation: 4

@@ -81,6 +81,7 @@ dependencies = [
     "transformers>=5.18.0",
     "gymnasium>=1.3.0",
     "vizdoom>=1.3.1",
+    "huggingface-hub[hf-xet]>=1.33.0",
 ]
 
 
@@ -106,6 +107,7 @@ ampere = [
     "flashinfer-cubin; sys_platform == 'linux'",
     "flashinfer-jit-cache; sys_platform == 'linux'",
     "gram-newton-schulz-ampere; sys_platform == 'linux'",
+    "gram-newton-schulz; sys_platform == 'linux'",
     "kernels",
     "dion",
 ]
@@ -124,11 +126,27 @@ ampere13 = [
     "flashinfer-cubin; sys_platform == 'linux'",
     "flashinfer-jit-cache; sys_platform == 'linux'",
     "gram-newton-schulz-ampere; sys_platform == 'linux'",
+    "gram-newton-schulz; sys_platform == 'linux'",
     "kernels",
     "dion",
 ]
+hopper = [
+    "torch==2.13.*",
+    "gram-newton-schulz-ampere; sys_platform == 'linux'",
+    "gram-newton-schulz; sys_platform == 'linux'",
+    "torchvision",
+    "torchaudio",
+    "transformers",
+    "accelerate",
+    "flash-attn-4==4.0.0b15; sys_platform == 'linux'",
+    "nvidia-cutlass-dsl==4.5.2; sys_platform == 'linux'",
+    "apache-tvm-ffi==0.1.11; sys_platform == 'linux'",
+    "quack-kernels==0.5.0; sys_platform == 'linux'",
+]
 cpu = [
     "torch",
+    "gram-newton-schulz-ampere; sys_platform == 'linux'",
+    "gram-newton-schulz; sys_platform == 'linux'",
     "torchvision",
     "torchaudio",
     "transformers",
@@ -146,6 +164,7 @@ conflicts = [
         { extra = "cpu" },
         { extra = "ampere" },
         { extra = "ampere13" },
+        { extra = "hopper" },
     ],
 ]
 
@@ -187,7 +206,7 @@ no-lines-before = ["standard-library", "third-party", "first-party", "local-fold
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["architecture*", "losses*", "train_datasets*", "training*", "transport*", "evaluation*", "plotting*", "evals*", "configs*"]
+include = ["configs*", "data*", "inference*", "losses*", "models*", "plotting*", "training*", "transport*", "utils*"]
 namespaces = true
 
 [tool.setuptools.package-data]
@@ -204,16 +223,19 @@ torch = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
     { index = "pytorch-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu129", extra = "hopper", marker = "sys_platform == 'linux'" },
 ]
 torchvision = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
     { index = "pytorch-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu129", extra = "hopper", marker = "sys_platform == 'linux'" },
 ]
 torchaudio = [
     { index = "pytorch-cpu", extra = "cpu" },
     { index = "pytorch-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
     { index = "pytorch-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
+    { index = "pytorch-cu129", extra = "hopper", marker = "sys_platform == 'linux'" },
 ]
 flash-attn = [
     { index = "astral-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
@@ -231,7 +253,7 @@ flashinfer-jit-cache = [
     { index = "flashinfer-cu129", extra = "ampere", marker = "sys_platform == 'linux'" },
     { index = "flashinfer-cu130", extra = "ampere13", marker = "sys_platform == 'linux'" },
 ]
-gram-newton-schulz-ampere = { git = "https://github.com/afrenkai/Gram-Newton-Schulz-Ampere.git"}
+gram-newton-schulz-ampere = { git = "https://github.com/afrenkai/Gram-Newton-Schulz-Ampere.git" }
 dion = { git = "https://github.com/microsoft/dion.git", rev = "71dc64f9fde8c3ee8643431390a16698bf32396f" }
 
 [[tool.uv.index]]

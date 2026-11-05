@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpeakUp Forecasts</title>
+<style>
+  :root { --bg: #fafaf9; --fg: #1c1917; --muted: #78716c; --card: #ffffff; --line: #e7e5e4; --accent: #2563eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1c1917; --fg: #f5f5f4; --muted: #a8a29e; --card: #292524; --line: #44403c; --accent: #60a5fa; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  p.lede { color: var(--muted); margin: 0 0 20px; }
+  form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); }
+  input, select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); width: 110px; }
+  button { font: inherit; padding: 7px 16px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: wait; }
+  #status { color: var(--muted); margin: 14px 0; min-height: 22px; }
+  table { border-collapse: collapse; font-variant-numeric: tabular-nums; margin-bottom: 18px; }
+  td, th { padding: 4px 12px; border-bottom: 1px solid var(--line); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 16px; }
+  section h2 { font-size: 15px; margin: 0 0 8px; }
+  img { max-width: 100%; height: auto; background: #fff; border-radius: 6px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>SpeakUp world model forecasts</h1>
+  <p class="lede" id="contract">Loading model contract…</p>
+  <form id="form">
+    <label>Dataset <select name="dataset" id="dataset"></select></label>
+    <label>Validation window <input name="window" type="number" value="0" min="0"></label>
+    <label>Samples <input name="samples" type="number" value="4" min="1" max="64"></label>
+    <label>Seed <input name="seed" type="number" value="0" min="0"></label>
+    <label>NFE sweep <input name="steps" value="1,4,8,16"></label>
+    <label>Action guidance <input name="action_guidance" type="number" value="1" min="0" max="20" step="0.5"></label>
+    <label>Context guidance <input name="context_guidance" type="number" value="1" min="0" max="20" step="0.5"></label>
+    <button id="run">Forecast</button>
+  </form>
+  <div id="status"></div>
+  <div id="results"></div>
+</main>
+<script>
+  const contract = document.getElementById("contract");
+  const status = document.getElementById("status");
+  const results = document.getElementById("results");
+  fetch("contract").then(response => response.json()).then(info => {
+    const names = Object.keys(info.datasets);
+    document.getElementById("dataset").innerHTML = names.map(name => `<option value="${name}">${name} (${info.datasets[name]})</option>`).join("");
+    contract.textContent = `${info.weights} weights · ${info.context_steps} context steps → ${info.target_steps} forecast steps at ${info.video_rate} Hz · ${names.length} validation datasets`;
+  });
+  document.getElementById("form").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = document.getElementById("run");
+    button.disabled = true;
+    status.textContent = "Running forecasts…";
+    const query = new URLSearchParams(new FormData(event.target));
+    const started = performance.now();
+    const response = await fetch(`forecast?${query}`);
+    button.disabled = false;
+    if (!response.ok) { status.textContent = `Error ${response.status}: ${await response.text()}`; return; }
+    const data = await response.json();
+    status.textContent = `${query.get("dataset")} window ${data.window} (${data.actions ? "recorded controls" : "no controls"}) in ${((performance.now() - started) / 1000).toFixed(1)} s`;
+    const sweep = Object.keys(data.timings);
+    const rows = sweep.map(steps => `<tr><td>${steps}</td><td>${data.metrics[`video_mse_nfe${steps}`]}</td><td>${data.metrics[`audio_mse_nfe${steps}`]}</td><td>${data.metrics[`video_spread_nfe${steps}`]}</td><td>${data.metrics[`audio_spread_nfe${steps}`]}</td><td>${Math.round(data.timings[steps].denoise_ms)}</td></tr>`).join("");
+    results.innerHTML = `
+      <section><h2>Error vs copy-last baseline (encoder latent space)</h2>
+        <table><tr><th>NFE</th><th>video MSE</th><th>audio MSE</th><th>video spread</th><th>audio spread</th><th>denoise ms</th></tr>${rows}
+        <tr><td>copy last</td><td>${data.metrics.video_persistence_mse}</td><td>${data.metrics.audio_persistence_mse}</td><td></td><td></td><td></td></tr></table>
+        <img alt="Horizon error" src="data:image/png;base64,${data.horizon_error}"></section>
+      <section><h2>Spread per forecast step (across samples; 1.0 = true variance)</h2><img alt="Horizon spread" src="data:image/png;base64,${data.horizon_spread}"></section>
+      <section><h2>Video latents (PCA → RGB), true vs predicted</h2><img alt="Video latents" src="data:image/png;base64,${data.video}"></section>
+      <section><h2>Audio latents, top principal components</h2><img alt="Audio latents" src="data:image/png;base64,${data.audio}"></section>`;
+  });
+</script>
+</body>
+</html>

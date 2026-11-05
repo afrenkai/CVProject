@@ -1,9 +1,7 @@
-from typing import Self
 import torch
 from beartype import beartype
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
-from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
 from transport.transport_types import AudioVisualInterpolant, TransportConfig
 
@@ -11,11 +9,6 @@ from transport.transport_types import AudioVisualInterpolant, TransportConfig
 class AudioVisualFlowTransport:
     def __init__(self, config: TransportConfig) -> None:
         self.config = config
-
-    @classmethod
-    def from_omegaconf(cls, config: DictConfig) -> Self:
-        values = OmegaConf.to_container(config, resolve=True)
-        return cls(TransportConfig.model_validate(values))
 
     # Noise-ward rational shift, mirrored for t=0 noise / t=1 data. Matches the t=1-noise forms in
     # facebookresearch/Flow-World-Models transport/integrators.py (ode.__init__) and

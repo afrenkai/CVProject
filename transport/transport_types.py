@@ -3,18 +3,10 @@ from typing import Literal
 from pydantic import (
     BaseModel,
     ConfigDict,
-    NonNegativeFloat,
+    Field,
     PositiveFloat,
-    PositiveInt,
 )
 from torch import Tensor
-from configs.config_types import FrozenModel
-
-
-class ForecastConfig(FrozenModel):
-    n_futures: PositiveInt = 8
-    integration_steps: PositiveInt = 16
-    grid_shift: PositiveFloat = 4.0
 
 
 class TimeDistributionConfig(BaseModel):
@@ -30,9 +22,9 @@ class TransportConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     noise_standard_deviation: PositiveFloat = 1.0
-    sde_diffusion_scale: NonNegativeFloat = 1.0
     time_distribution: TimeDistributionConfig = TimeDistributionConfig()
     video_target: Literal["frame", "change"] = "frame"
+    context_noise: float = Field(default=0.0, ge=0.0, lt=1.0)
 
 
 @dataclass(frozen=True)

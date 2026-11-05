@@ -1,0 +1,31 @@
+inherit: [stage1.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_v1
+  windows: 200000
+  validation_windows: 128
+
+encoder:
+  video_model: vit_base_patch16_dinov3.lvd1689m
+  video_feature_dimension: 768
+  video_layers: [3, 6, 9, 12]
+  audio_model: mispeech/dasheng-base
+
+model:
+  backbone: {hidden_dimension: 512, heads: 8, layers: 8}
+  diffusion_head: {hidden_dimension: 1024, heads: 8, layers: 2}
+
+optimizer:
+  learning_rate: 3.0e-4
+  warmup_steps: 1000
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_v1
+  epochs: 3
+  batch_size: 32
+  gradient_accumulation: 2
+  ema_warmup: true
+  eval_steps: 1000
+  checkpoint_steps: 500
+  snapshot_steps: 2000
+  compile: true
