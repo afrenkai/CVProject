@@ -7,9 +7,10 @@ from jaxtyping import Float, jaxtyped
 from torch import Tensor, nn
 from torchaudio.functional import resample
 from transformers import AutoConfig
+from models.audio.audiomosaic import AudioMosaicEncoder
 from models.audio.dasheng import DashengAudioEncoder
 from models.audio.spatial import BinauralFeatures
-from models.encoder_types import EncoderConfig, FrozenEncoderConfig
+from models.encoder_types import AudioMosaicArchitecture, EncoderConfig, FrozenEncoderConfig
 from models.video.encoder import DinoVideoEncoder
 
 
@@ -28,7 +29,12 @@ class JointEncoder(nn.Module):
             frozen=True,
             cache_directory=config.video_cache_directory,
         ).to(device=device, dtype=torch.float32)
-        self.audio_encoder = DashengAudioEncoder(config, device)
+        self.audio_encoder: DashengAudioEncoder | AudioMosaicEncoder
+        match config.audio_encoder:
+            case "dasheng":
+                self.audio_encoder = DashengAudioEncoder(config, device)
+            case "audiomosaic":
+                self.audio_encoder = AudioMosaicEncoder(config, device)
         self.spatial_features = (
             None
             if config.spatial_sample_rate is None
@@ -51,16 +57,22 @@ class JointEncoder(nn.Module):
         with torch.autocast(waveform.device.type, enabled=False):
             return resample(waveform.float().contiguous(), config.spatial_sample_rate, config.sample_rate)
 
-    def audio_channels(self, waveform: Tensor, context_only: bool) -> Tensor:
+    def audio_channels(self, waveform: Tensor) -> Tensor:
         config = self.settings
-        context_samples = config.context_frames * config.loading_sample_rate // config.video_rate
+        history = config.audio_history_samples
+        window = waveform[..., history:]
+        assert window.shape[-1] % config.step_samples == 0
         context_tokens = config.context_frames // config.video_frames_per_step * config.audio_tokens_per_step
-        observed = self.audio_encoder(self.semantic_waveform(waveform[:, :2, :context_samples])).float()
-        if context_only:
-            semantic = observed
-        else:
-            complete = self.audio_encoder(self.semantic_waveform(waveform[:, :2])).float()
-            semantic = torch.cat((observed, complete[..., context_tokens:]), dim=-1)
+        target_tokens = window.shape[-1] // config.step_samples * config.audio_tokens_per_step - context_tokens
+        observed = self.audio_encoder(self.semantic_waveform(waveform[:, :2, : history + config.context_samples]))
+        complete = self.audio_encoder(self.semantic_waveform(waveform[:, :2])).float()
+        semantic = torch.cat(
+            (
+                observed.float()[..., observed.shape[-1] - context_tokens :],
+                complete[..., complete.shape[-1] - target_tokens :],
+            ),
+            dim=-1,
+        )
         channels = rearrange(
             semantic,
             "(batch channel) feature time -> batch channel feature time",
@@ -71,7 +83,7 @@ class JointEncoder(nn.Module):
         missing = config.waveform_channels - waveform.shape[1]
         spatial = self.spatial_features(
             torch.cat(
-                (waveform.float(), waveform.new_zeros(waveform.shape[0], missing, waveform.shape[-1]).float()),
+                (window.float(), window.new_zeros(window.shape[0], missing, window.shape[-1]).float()),
                 dim=1,
             )
         )
@@ -86,35 +98,37 @@ class JointEncoder(nn.Module):
 
     @torch.no_grad()
     @jaxtyped(typechecker=beartype)
-    def encode_observed(
+    def encode_audio(
         self,
-        frames: Float[Tensor, "batch frame video_channel height width"],
         waveform: Float[Tensor, "batch audio_channel sample"],
-    ) -> tuple[
-        Float[Tensor, "batch time patch video_feature"],
-        Float[Tensor, "batch time audio_feature"],
-    ]:
+    ) -> Float[Tensor, "batch time audio_feature"]:
         config = self.settings
-        assert not self.training and not self.video_encoder.training and not self.audio_encoder.training
-        context_samples = config.context_frames * config.loading_sample_rate // config.video_rate
-        assert config.context_frames * config.loading_sample_rate % config.video_rate == 0
-        assert frames.shape[1] >= config.context_frames and waveform.shape[-1] >= context_samples
-        with torch.autocast(frames.device.type, dtype=torch.bfloat16, enabled=config.bfloat16):
-            observed_video = self.video_encoder(frames[:, : config.context_frames].float()).float()
-            video = rearrange(
-                observed_video,
-                "batch (time phase) patch feature -> batch time patch (phase feature)",
-                phase=config.video_frames_per_step,
-            )
+        assert not self.training and not self.audio_encoder.training
+        with torch.autocast(waveform.device.type, dtype=torch.bfloat16, enabled=config.bfloat16):
             audio = rearrange(
-                self.audio_channels(waveform[..., :context_samples], context_only=True),
+                self.audio_channels(waveform),
                 "batch channel feature (time phase) -> batch time (channel phase feature)",
                 phase=config.audio_tokens_per_step,
             )
-        assert video.shape[1] == audio.shape[1] == config.context_frames // config.video_frames_per_step
-        assert video.dtype == audio.dtype == torch.float32
-        assert torch.isfinite(video).all() and torch.isfinite(audio).all()
-        return video, audio
+        assert audio.dtype == torch.float32 and torch.isfinite(audio).all()
+        return audio
+
+    @torch.no_grad()
+    @jaxtyped(typechecker=beartype)
+    def encode_video(
+        self,
+        frames: Float[Tensor, "batch frame video_channel height width"],
+    ) -> Float[Tensor, "batch time patch video_feature"]:
+        config = self.settings
+        assert not self.training and not self.video_encoder.training
+        with torch.autocast(frames.device.type, dtype=torch.bfloat16, enabled=config.bfloat16):
+            video = rearrange(
+                self.video_encoder(frames.float()).float(),
+                "batch (time phase) patch feature -> batch time patch (phase feature)",
+                phase=config.video_frames_per_step,
+            )
+        assert video.dtype == torch.float32 and torch.isfinite(video).all()
+        return video
 
     @torch.no_grad()
     @jaxtyped(typechecker=beartype)
@@ -126,30 +140,34 @@ class JointEncoder(nn.Module):
         Float[Tensor, "batch time patch video_feature"],
         Float[Tensor, "batch time audio_feature"],
     ]:
-        config = self.settings
-        assert not self.training and not self.video_encoder.training and not self.audio_encoder.training
-        with torch.autocast(frames.device.type, dtype=torch.bfloat16, enabled=config.bfloat16):
-            video = rearrange(
-                self.video_encoder(frames.float()).float(),
-                "batch (time phase) patch feature -> batch time patch (phase feature)",
-                phase=config.video_frames_per_step,
-            )
-            audio = rearrange(
-                self.audio_channels(waveform, context_only=False),
-                "batch channel feature (time phase) -> batch time (channel phase feature)",
-                phase=config.audio_tokens_per_step,
-            )
+        video, audio = self.encode_video(frames), self.encode_audio(waveform)
         assert video.shape[:2] == audio.shape[:2]
-        assert video.dtype == audio.dtype == torch.float32
-        assert torch.isfinite(video).all() and torch.isfinite(audio).all()
         return video, audio
 
-
+#TODO: write custom thing for audio encoder instead
 def build_encoder_config(config: EncoderConfig, bfloat16: bool) -> FrozenEncoderConfig:
     audio_path = Path(snapshot_download(config.audio_model))
-    audio_feature_dimension: int = AutoConfig.from_pretrained(
-        str(audio_path), trust_remote_code=True, local_files_only=True
-    ).encoder_kwargs["embed_dim"]
+    match config.audio_encoder:
+        case "dasheng":
+            audio_feature_dimension: int = AutoConfig.from_pretrained(
+                str(audio_path), trust_remote_code=True, local_files_only=True
+            ).encoder_kwargs["embed_dim"]
+            audio_native_frame_rate, audio_frame_repeat, audio_tokens_per_step = 25, 2, 5
+            audio_history_steps = 0
+            assert not config.audio_frequency_tokens
+            audio_token_parts = 1
+        case "audiomosaic":
+            architecture = AudioMosaicArchitecture.model_validate_json((audio_path / "config.json").read_text())
+            audio_feature_dimension = architecture.embed_dim * architecture.spec_size[1] // architecture.patch_size[1]
+            assert config.video_rate % config.video_frames_per_step == 0
+            audio_native_frame_rate = config.video_rate // config.video_frames_per_step
+            audio_frame_repeat, audio_tokens_per_step = 1, 1
+            capacity_steps = (
+                architecture.capacity_samples * audio_native_frame_rate // architecture.audio_preprocessing.sample_rate
+            )
+            audio_history_steps = capacity_steps - config.context_frames // config.video_frames_per_step
+            frequency_patches = architecture.spec_size[1] // architecture.patch_size[1]
+            audio_token_parts = frequency_patches if config.audio_frequency_tokens else 1
     return FrozenEncoderConfig(
         video_model=config.video_model,
         video_feature_dimension=config.video_feature_dimension,
@@ -159,11 +177,14 @@ def build_encoder_config(config: EncoderConfig, bfloat16: bool) -> FrozenEncoder
         video_frames_per_step=config.video_frames_per_step,
         sample_rate=16000,
         context_frames=config.context_frames,
+        audio_encoder=config.audio_encoder,
         audio_model_directory=audio_path,
         audio_feature_dimension=audio_feature_dimension,
-        audio_native_frame_rate=25,
-        audio_frame_repeat=2,
-        audio_tokens_per_step=5,
+        audio_native_frame_rate=audio_native_frame_rate,
+        audio_frame_repeat=audio_frame_repeat,
+        audio_tokens_per_step=audio_tokens_per_step,
+        audio_history_steps=audio_history_steps,
+        audio_token_parts=audio_token_parts,
         bfloat16=bfloat16,
         spatial_sample_rate=48000 if config.spatial_audio else None,
         ambisonic=config.spatial_audio,

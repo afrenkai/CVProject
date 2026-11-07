@@ -206,7 +206,7 @@ no-lines-before = ["standard-library", "third-party", "first-party", "local-fold
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["configs*", "data*", "inference*", "losses*", "models*", "plotting*", "training*", "transport*", "utils*"]
+include = ["configs*", "data*", "evals*", "losses*", "models*", "training*", "transport*", "utils*"]
 namespaces = true
 
 [tool.setuptools.package-data]

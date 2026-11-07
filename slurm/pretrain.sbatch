@@ -15,7 +15,7 @@ source slurm/environment.sh
 uv sync --frozen --extra "$SPEAKUP_EXTRA"
 source "$UV_PROJECT_ENVIRONMENT/bin/activate"
 
-CONFIG="${CONFIG:-configs/pretrain/stage1.yaml}"
+CONFIG="${CONFIG:-configs/pretrain/mvp.yaml}"
 LOCK="logs/.${LOCK_NAME:-$SLURM_JOB_NAME}"
 NODES="${SLURM_NNODES:-1}"
 GPUS=$(( NODES * SLURM_GPUS_ON_NODE ))

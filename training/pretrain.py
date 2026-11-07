@@ -1,28 +1,24 @@
 import argparse
 import os
-from collections import Counter
 from pathlib import Path
 import torch
 import torch.distributed as dist
-from torch.optim.swa_utils import AveragedModel, get_ema_multi_avg_fn
-from torch.utils.data import DataLoader, Dataset, Subset, default_collate
-from transformers import TrainingArguments
+from torch.optim.swa_utils import AveragedModel
+from torch.utils.data import DataLoader, Dataset, Subset
+from transformers import TrainingArguments, get_cosine_with_min_lr_schedule_with_warmup
 from transformers.trainer_utils import get_last_checkpoint
 from configs.loading import load_run_settings
 from data.control_types import ControlLayout
 from data.latent_cache import CachedWindowDataset
-from data.windows import build_dataset, build_validation_datasets
-from models.compilation import compile_blocks, set_recompile_limit
 from models.encoder_types import FrozenEncoderConfig
-from models.joint_encoder import JointEncoder, build_encoder_config
+from models.joint_encoder import build_encoder_config
 from models.normalization import AudioVisualNormalizer, RunningMoments
-from training.objective import WorldModelObjective, build_objective
-from training.optimization import build_optimizer, build_schedule, warmup_ema_update
+from models.transformers import AdaptiveAttentionBlock
+from training.objective import WorldModelObjective, build_objective, checkpoint_weights
+from training.optimization import build_optimizer, warmup_ema_update
 from training.trainer import (
     EmaCallback,
-    SampleCallback,
     SlimLsdCallback,
-    SnapshotCallback,
     StopCallback,
     WorldModelTrainer,
 )
@@ -30,17 +26,12 @@ from training.training_types import PretrainConfig
 
 
 def fit_normalizer(
-    dataset: Subset, encoder: JointEncoder | None, batch_size: int, workers: int, device: torch.device, world: int
+    dataset: Subset, batch_size: int, workers: int, device: torch.device, world: int
 ) -> AudioVisualNormalizer:
     video_moments, audio_moments = RunningMoments(), RunningMoments()
     for batch in DataLoader(dataset, batch_size=batch_size, num_workers=workers):
-        with torch.no_grad():
-            if encoder is None:
-                video, audio = batch["video"].to(device).float(), batch["audio"].to(device).float()
-            else:
-                video, audio = encoder.encode(batch["frames"].to(device), batch["waveform"].to(device))
-        video_moments.add(video, (0, 1, 2))
-        audio_moments.add(audio, (0, 1))
+        video_moments.add(batch["video"].to(device).float(), (0, 1, 2))
+        audio_moments.add(batch["audio"].to(device).float(), (0, 1))
     if world > 1:
         for moments in (video_moments, audio_moments):
             count = torch.tensor(float(moments.count), dtype=torch.float64, device=device)
@@ -69,6 +60,7 @@ def training_arguments(config: PretrainConfig) -> TrainingArguments:
         eval_steps=trainer_config.eval_steps,
         per_device_eval_batch_size=trainer_config.batch_size,
         save_steps=trainer_config.checkpoint_steps,
+        save_total_limit=trainer_config.checkpoint_limit,
         report_to=[] if trainer_config.wandb_mode == "disabled" else ["wandb"],
         dataloader_num_workers=data_config.workers,
         dataloader_prefetch_factor=4 if data_config.workers else None,
@@ -80,18 +72,8 @@ def training_arguments(config: PretrainConfig) -> TrainingArguments:
     )
 
 
-def load_datasets(
-    config: PretrainConfig, encoder_config: FrozenEncoderConfig, rank: int
-) -> tuple[Dataset, dict[str, Dataset] | None]:
+def load_datasets(config: PretrainConfig, rank: int) -> tuple[Dataset, dict[str, Dataset] | None]:
     data_config = config.data
-    if not data_config.latent_cache:
-        layout = ControlLayout()
-        dataset = build_dataset(data_config, encoder_config, config.encoder.total_frames, layout)
-        if rank == 0:
-            print(f"Training records: {len(dataset.paths)} {dict(Counter(dataset.datasets))}", flush=True)
-        if not data_config.validation_windows:
-            return dataset, None
-        return dataset, build_validation_datasets(data_config, encoder_config, config.encoder.total_frames, layout)
     cache = Path(data_config.latent_cache)
     dataset = CachedWindowDataset(cache / "train", data_config.windows)
     if rank == 0:
@@ -107,11 +89,12 @@ def load_datasets(
 def load_normalizer(
     output: Path,
     dataset: Dataset,
-    encoder: JointEncoder | None,
     config: PretrainConfig,
     arguments: TrainingArguments,
 ) -> AudioVisualNormalizer:
     normalizer_path = output / "normalizer.pt"
+    if not normalizer_path.exists() and config.trainer.initialize_from:
+        normalizer_path = Path(config.trainer.initialize_from).parent / "normalizer.pt"
     if normalizer_path.exists():
         state = torch.load(normalizer_path, map_location="cpu", weights_only=True)
         return AudioVisualNormalizer(
@@ -123,7 +106,6 @@ def load_normalizer(
     rank, world = arguments.process_index, arguments.world_size
     normalizer = fit_normalizer(
         Subset(dataset, range(rank, config.trainer.normalizer_windows, world)),
-        encoder,
         config.trainer.batch_size,
         config.data.workers,
         arguments.device,
@@ -162,7 +144,6 @@ def warm_up(
 
 def main(config: PretrainConfig) -> None:
     trainer_config, optimizer_config = config.trainer, config.optimizer
-    set_recompile_limit(trainer_config.recompile_limit)
     os.environ.setdefault("WANDB_PROJECT", trainer_config.wandb_project)
     os.environ.setdefault("WANDB_MODE", trainer_config.wandb_mode)
     os.environ.setdefault("WANDB_DIR", trainer_config.output)
@@ -177,18 +158,26 @@ def main(config: PretrainConfig) -> None:
     resume = get_last_checkpoint(str(output))
 
     encoder_config = build_encoder_config(config.encoder, bfloat16=trainer_config.precision == "bf16")
-    dataset, validation = load_datasets(config, encoder_config, rank)
-    encoder = None if config.data.latent_cache else JointEncoder(encoder_config, arguments.device)
-    normalizer = load_normalizer(output, dataset, encoder, config, arguments)
+    dataset, validation = load_datasets(config, rank)
+    normalizer = load_normalizer(output, dataset, config, arguments)
 
     torch.manual_seed(config.data.seed)
     objective = build_objective(
         encoder_config, config.encoder.total_frames, config.model, config.objective, normalizer, arguments.device
     )
+    if resume is None and trainer_config.initialize_from:
+        objective.load_state_dict(checkpoint_weights(Path(trainer_config.initialize_from), True))
+        print(f"Initialized from {trainer_config.initialize_from}", flush=True)
     objective.predictor.activation_checkpointing = trainer_config.activation_checkpointing
     objective.predictor.diffusion_head.activation_checkpointing = trainer_config.activation_checkpointing
+    torch._dynamo.config.recompile_limit = trainer_config.recompile_limit
+    torch._dynamo.config.accumulated_recompile_limit = max(
+        trainer_config.recompile_limit, torch._dynamo.config.accumulated_recompile_limit
+    )
     if trainer_config.compile:
-        print(f"Compiled {compile_blocks(objective.predictor)} attention blocks", flush=True)
+        for block in objective.predictor.modules():
+            if isinstance(block, AdaptiveAttentionBlock):
+                block.compile(dynamic=False)
     warm_up(objective, config, encoder_config, arguments)
 
     batch_size = trainer_config.batch_size
@@ -199,21 +188,13 @@ def main(config: PretrainConfig) -> None:
     optimizer = build_optimizer(
         objective, optimizer_config.name, optimizer_config.learning_rate, optimizer_config.weight_decay
     )
-    schedule = build_schedule(
-        optimizer,
-        optimizer_config.schedule,
-        optimizer_config.warmup_steps,
-        total_steps,
-        optimizer_config.final_learning_rate_fraction,
+    schedule = get_cosine_with_min_lr_schedule_with_warmup(
+        optimizer, optimizer_config.warmup_steps, total_steps, min_lr_rate=optimizer_config.final_learning_rate_fraction
     )
     averaged = (
         AveragedModel(
             objective,
-            multi_avg_fn=(
-                warmup_ema_update(trainer_config.ema_decay)
-                if trainer_config.ema_warmup
-                else get_ema_multi_avg_fn(trainer_config.ema_decay)
-            ),
+            multi_avg_fn=warmup_ema_update(trainer_config.ema_decay),
             use_buffers=True,
         )
         if rank == 0
@@ -223,15 +204,10 @@ def main(config: PretrainConfig) -> None:
         averaged.load_state_dict(torch.load(Path(resume) / "ema.pt", map_location="cpu", weights_only=False))
     callbacks = [
         EmaCallback(averaged, objective),
-        SnapshotCallback(trainer_config.snapshot_steps),
         StopCallback(trainer_config.stop_at, Path(trainer_config.stop_file) if trainer_config.stop_file else None),
     ]
     if config.objective.slim_lsd.weight > 0:
         callbacks.append(SlimLsdCallback(objective))
-    if validation:
-        shown = validation.get("d2e") or next(iter(validation.values()))
-        samples = default_collate([shown[index] for index in range(min(4, len(shown)))])
-        callbacks.append(SampleCallback(objective, encoder, encoder_config, samples))
     trainer = WorldModelTrainer(
         model=objective,
         args=arguments,
@@ -239,7 +215,6 @@ def main(config: PretrainConfig) -> None:
         eval_dataset=validation,
         optimizers=(optimizer, schedule),
         callbacks=callbacks,
-        encoder=encoder,
         normalizer=objective.normalizer,
         video_only=config.objective.mode == "video_only",
     )

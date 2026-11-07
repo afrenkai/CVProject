@@ -9,7 +9,6 @@ from transport.flow import AudioVisualFlowTransport
 from transport.solvers import flow_map_jump
 
 
-# ALL FOR ABLATION, not in current loss_fn
 @jaxtyped(typechecker=beartype)
 def slim_lsd_loss(
     transport: AudioVisualFlowTransport,
@@ -17,11 +16,11 @@ def slim_lsd_loss(
     video_latents: Float[Tensor, "batch time patch video_feature"],
     audio_latents: Float[Tensor, "batch time audio_feature"],
     context_steps: int,
-    actions: Float[Tensor, "batch target_time action"] | None,
+    actions: Float[Tensor, "batch target_time action"],
+    context_actions: Float[Tensor, "batch context_time action"],
     maximum_time_gap: float,
-    context_actions: Float[Tensor, "batch context_time action"] | None = None,
-    maximum_end_time: float = 0.95,
-    adaptive_power: float = 0.75,
+    maximum_end_time: float,
+    adaptive_power: float,
 ) -> tuple[Float[Tensor, ""], Float[Tensor, ""]]:
     context_video = video_latents[:, :context_steps].detach()
     context_audio = audio_latents[:, :context_steps].detach()
@@ -33,8 +32,8 @@ def slim_lsd_loss(
         .clamp(max=maximum_end_time)
         .maximum(interpolant.time)
     )
-    detached_actions = None if actions is None else actions.detach()
-    detached_context_actions = None if context_actions is None else context_actions.detach()
+    detached_actions = actions.detach()
+    detached_context_actions = context_actions.detach()
 
     student_video, student_audio = predictor(
         interpolant.video_state,

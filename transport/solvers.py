@@ -3,7 +3,6 @@ from beartype import beartype
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
-from models.guidance import GuidedPredictor
 from models.world_model import AudioVisualFlowPredictor
 
 # initial code taken from https://github.com/facebookresearch/Flow-World-Models/blob/main/transport/integrators.py
@@ -33,15 +32,14 @@ def flow_map_jump(
 @torch.no_grad()
 @jaxtyped(typechecker=beartype)
 def solve_flow_map(
-    predictor: AudioVisualFlowPredictor | GuidedPredictor,
+    predictor: AudioVisualFlowPredictor,
     video_state: Float[Tensor, "batch time patch video_feature"],
     audio_state: Float[Tensor, "batch time audio_feature"],
     context_video: Float[Tensor, "batch context_time patch video_feature"],
     context_audio: Float[Tensor, "batch context_time audio_feature"],
-    actions: Float[Tensor, "batch time action"] | None,
+    actions: Float[Tensor, "batch time action"],
     integration_grid: Float[Tensor, "grid"],  # noqa: F821
-    diagonal: bool,
-    context_actions: Float[Tensor, "batch context_time action"] | None = None,
+    context_actions: Float[Tensor, "batch context_time action"],
     context_noise: Float[Tensor, "batch"] | None = None,  # noqa: F821
 ) -> tuple[
     Float[Tensor, "batch time patch video_feature"],
@@ -50,12 +48,11 @@ def solve_flow_map(
     for integration_index in range(integration_grid.shape[0] - 1):
         start_time = integration_grid[integration_index].expand(video_state.shape[0])
         end_time = integration_grid[integration_index + 1].expand(video_state.shape[0])
-        model_end_time = start_time if diagonal else end_time
         video_velocity, audio_velocity = predictor(
             video_state,
             audio_state,
             start_time,
-            model_end_time,
+            start_time,
             context_video,
             context_audio,
             actions,

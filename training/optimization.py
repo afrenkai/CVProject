@@ -5,9 +5,8 @@ from gram_newton_schulz_ampere import Dion3
 from gram_newton_schulz_ampere import Muon as AmpereGramMuon
 from torch import Tensor, nn
 from torch.optim import Optimizer
-from torch.optim.lr_scheduler import LambdaLR
-from transformers import get_cosine_with_min_lr_schedule_with_warmup
 from models.transformers import AdaptiveAttentionBlock
+from training.training_types import OptimizerName
 
 
 class OptimizerCollection(Optimizer):
@@ -39,7 +38,7 @@ class OptimizerCollection(Optimizer):
 
 
 def build_optimizer(
-    objective: nn.Module, optimizer_name: str, learning_rate: float, weight_decay: float | None
+    objective: nn.Module, name: OptimizerName, learning_rate: float, weight_decay: float
 ) -> OptimizerCollection:
     block_matrices = [
         parameter
@@ -50,32 +49,31 @@ def build_optimizer(
     ]
     block_matrix_ids = {id(parameter) for parameter in block_matrices}
     remaining = [parameter for parameter in objective.parameters() if id(parameter) not in block_matrix_ids]
-    decay = 0.1 if weight_decay is None else weight_decay
-    match optimizer_name:
-        case "adamw":
-            optimizers = [torch.optim.AdamW(objective.parameters(), lr=learning_rate, weight_decay=weight_decay or 0.0)]
+    match name:
         case "muon":
             optimizers = [
-                torch.optim.Muon(block_matrices, lr=learning_rate, weight_decay=decay, adjust_lr_fn="match_rms_adamw"),
-                torch.optim.AdamW(remaining, lr=learning_rate, weight_decay=decay),
+                torch.optim.Muon(
+                    block_matrices, lr=learning_rate, weight_decay=weight_decay, adjust_lr_fn="match_rms_adamw"
+                ),
+                torch.optim.AdamW(remaining, lr=learning_rate, weight_decay=weight_decay),
             ]
         case "gns_muon":
             optimizers = [
                 GramMuon(
                     block_matrices,
                     lr=learning_rate,
-                    weight_decay=decay,
+                    weight_decay=weight_decay,
                     adjust_lr="rms_norm",
                     ns_algorithm="gram_newton_schulz",
                 ),
-                torch.optim.AdamW(remaining, lr=learning_rate, weight_decay=decay),
+                torch.optim.AdamW(remaining, lr=learning_rate, weight_decay=weight_decay),
             ]
         case "gns_muon_ampere":
             optimizers = [
                 AmpereGramMuon(
                     [{"params": block_matrices, "algorithm": "muon"}, {"params": remaining, "algorithm": "adamw"}],
                     lr=learning_rate,
-                    weight_decay=decay,
+                    weight_decay=weight_decay,
                     adjust_lr="rms_norm",
                     ns_algorithm="gram_newton_schulz",
                 )
@@ -85,29 +83,11 @@ def build_optimizer(
                 Dion3(
                     [{"params": block_matrices, "algorithm": "dion3"}, {"params": remaining, "algorithm": "adamw"}],
                     lr=learning_rate,
-                    weight_decay=decay,
+                    weight_decay=weight_decay,
                     adjust_lr="rms_norm",
                 )
             ]
     return OptimizerCollection(optimizers)
-
-
-def build_schedule(
-    optimizer: Optimizer, schedule: str, warmup_steps: int, total_steps: int, final_learning_rate_fraction: float
-) -> LambdaLR:
-    def linear_scale(current: int) -> float:
-        if current < warmup_steps:
-            return (current + 1) / warmup_steps
-        progress = min(1.0, (current - warmup_steps) / (total_steps - warmup_steps))
-        return 1.0 - (1.0 - final_learning_rate_fraction) * progress
-
-    match schedule:
-        case "cosine":
-            return get_cosine_with_min_lr_schedule_with_warmup(
-                optimizer, warmup_steps, total_steps, min_lr_rate=final_learning_rate_fraction
-            )
-        case "linear":
-            return LambdaLR(optimizer, linear_scale)
 
 
 def warmup_ema_update(decay: float) -> Callable[[list[Tensor], list[Tensor], Tensor], None]:

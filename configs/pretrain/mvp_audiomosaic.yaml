@@ -1,0 +1,12 @@
+inherit: [mvp.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_audiomosaic_v1
+
+encoder:
+  audio_encoder: audiomosaic
+  audio_model: hanxunh/AudioMosaic-vit-b16-pretrained
+  audio_frequency_tokens: true
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_audiomosaic_frequency_v1

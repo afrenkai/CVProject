@@ -3,15 +3,24 @@ from configs.config_types import FrozenModel
 from data.control_types import ControlLayout
 
 
+class SourceConfig(FrozenModel):
+    root: str
+    audio_root: str | None = None
+    splits: str
+    video: str
+    audio: str | None = None
+    actions: str | None = None
+    weight: NonNegativeFloat = 0.0
+
+
 class DatasetConfig(FrozenModel):
-    catalog: str
-    latent_cache: str | None = None
+    sources: dict[str, SourceConfig] = Field(default_factory=dict)
+    synthetic: bool = False
+    latent_cache: str
     windows: PositiveInt
     validation_windows: NonNegativeInt = 0
     seed: NonNegativeInt = 0
-    group_weights: dict[str, NonNegativeFloat] | None = None
     mirror_probability: float = Field(default=0.0, ge=0.0, le=1.0)
-    distinct_windows: NonNegativeInt = 0
     recorded_actions: bool = False
     workers: NonNegativeInt = 8
     attempts: PositiveInt = 16

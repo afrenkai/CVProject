@@ -1,12 +1,10 @@
 import torch
 from einops import rearrange
 from torch import Tensor, nn
-from torch.distributed import ProcessGroup
 from torch.nn import functional as F
 from torch.nn.attention.flex_attention import BlockMask
 from torch.utils.checkpoint import checkpoint
-from models.model_types import AudioTokenConfig
-from models.sequence_parallel import gather_sequence, shard_sequence
+from models.model_types import AudioTokenConfig, WorldModelConfig
 from models.tokens import AudioVisualTokenProjector
 from models.transformers import AdaptiveAttentionBlock
 
@@ -38,57 +36,26 @@ class AdaptiveOutputProjection(nn.Module):
 
 class AudioVisualDDTHead(nn.Module):
     def __init__(
-        self,
-        video_dimension: int,
-        audio_dimension: int,
-        action_dimension: int,
-        backbone_dimension: int,
-        hidden_dimension: int,
-        heads: int,
-        layers: int,
-        mlp_ratio: float,
-        dropout: float,
-        spatial_grid: tuple[int, int] | None = None,
-        audio_tokens: AudioTokenConfig | None = None,
-        key_value_heads: int | None = None,
-        attention_backend: str = "sdpa",
+        self, video_dimension: int, audio_dimension: int, audio_tokens: AudioTokenConfig, config: WorldModelConfig
     ) -> None:
         super().__init__()
+        hidden = config.diffusion_head.hidden_dimension
         self.activation_checkpointing = False
-        self.sequence_group: ProcessGroup | None = None
-        self.audio_tokens = audio_tokens or AudioTokenConfig()
+        self.audio_tokens = audio_tokens
         self.target_tokens = AudioVisualTokenProjector(
-            video_dimension,
-            audio_dimension,
-            hidden_dimension,
-            spatial_grid,
-            self.audio_tokens,
+            video_dimension, audio_dimension, hidden, config.spatial_grid, audio_tokens
         )
         self.context_tokens = AudioVisualTokenProjector(
-            video_dimension,
-            audio_dimension,
-            hidden_dimension,
-            spatial_grid,
-            self.audio_tokens,
+            video_dimension, audio_dimension, hidden, config.spatial_grid, audio_tokens
         )
-        self.action_projection = nn.Linear(
-            action_dimension,
-            hidden_dimension,
-            bias=False,
-        )
-        self.condition_projection = nn.Linear(backbone_dimension, hidden_dimension)
+        self.action_projection = nn.Linear(config.action_dimension, hidden, bias=False)
+        self.condition_projection = nn.Linear(config.backbone.hidden_dimension, hidden)
         self.blocks = nn.ModuleList(
-            AdaptiveAttentionBlock(hidden_dimension, heads, mlp_ratio, dropout, key_value_heads, attention_backend)
-            for layer_index in range(layers)
+            AdaptiveAttentionBlock(hidden, config.diffusion_head.heads, config.mlp_ratio, config.attention_backend)
+            for layer_index in range(config.diffusion_head.layers)
         )
-        self.video_output = AdaptiveOutputProjection(
-            hidden_dimension,
-            video_dimension,
-        )
-        self.audio_output = AdaptiveOutputProjection(
-            hidden_dimension,
-            audio_dimension // self.audio_tokens.tokens_per_step,
-        )
+        self.video_output = AdaptiveOutputProjection(hidden, video_dimension)
+        self.audio_output = AdaptiveOutputProjection(hidden, audio_dimension // audio_tokens.tokens_per_step)
 
     def forward(
         self,
@@ -109,8 +76,6 @@ class AudioVisualDDTHead(nn.Module):
             0,
             self.action_projection(target_actions),
         )
-        if self.sequence_group is not None:
-            targets = shard_sequence(targets, self.sequence_group)
         context = self.context_tokens(context_video, context_audio, -context_video.shape[1])
         condition = self.condition_projection(
             F.silu(backbone_targets + rearrange(backbone_condition, "batch hidden -> batch 1 hidden"))
@@ -121,9 +86,6 @@ class AudioVisualDDTHead(nn.Module):
             else:
                 targets = block(targets, context, condition, attention_mask)
 
-        if self.sequence_group is not None:
-            targets = gather_sequence(targets, self.sequence_group)
-            condition = gather_sequence(condition, self.sequence_group)
         tokens_per_step = video_patches + self.audio_tokens.tokens_per_step
         predictions = rearrange(
             targets,

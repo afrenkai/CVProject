@@ -28,19 +28,8 @@ class AudioVisualFlowTransport:
         helpful docs are torch.randn/rand for normal and unif, respectively.
         """
         distribution = self.config.time_distribution
-        if distribution.type == "uniform":
-            time = torch.rand(
-                reference.shape[0],
-                device=reference.device,
-                dtype=reference.dtype,
-            )
-        else:
-            normal = torch.randn(
-                reference.shape[0],
-                device=reference.device,
-                dtype=reference.dtype,
-            )
-            time = torch.sigmoid(distribution.mean + distribution.standard_deviation * normal)
+        normal = torch.randn(reference.shape[0], device=reference.device, dtype=reference.dtype)
+        time = torch.sigmoid(distribution.mean + distribution.standard_deviation * normal)
         return self.shift_time(time)
 
     @jaxtyped(typechecker=beartype)
@@ -49,8 +38,6 @@ class AudioVisualFlowTransport:
         target_video: Float[Tensor, "batch time patch video_feature"],
         context_video: Float[Tensor, "batch context_time patch video_feature"],
     ) -> Float[Tensor, "batch time patch video_feature"]:
-        if self.config.video_target == "frame":
-            return target_video
         return target_video - context_video[:, -1:]
 
     @jaxtyped(typechecker=beartype)
@@ -59,8 +46,6 @@ class AudioVisualFlowTransport:
         sampled_video: Float[Tensor, "batch time patch video_feature"],
         context_video: Float[Tensor, "batch context_time patch video_feature"],
     ) -> Float[Tensor, "batch time patch video_feature"]:
-        if self.config.video_target == "frame":
-            return sampled_video
         return sampled_video + context_video[:, -1:]
 
     @jaxtyped(typechecker=beartype)

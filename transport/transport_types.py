@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Literal
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -12,7 +11,6 @@ from torch import Tensor
 class TimeDistributionConfig(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    type: Literal["uniform", "logit_normal"] = "logit_normal"
     shift: PositiveFloat = 4.0
     mean: float = 0.0
     standard_deviation: PositiveFloat = 1.0
@@ -23,7 +21,6 @@ class TransportConfig(BaseModel):
 
     noise_standard_deviation: PositiveFloat = 1.0
     time_distribution: TimeDistributionConfig = TimeDistributionConfig()
-    video_target: Literal["frame", "change"] = "frame"
     context_noise: float = Field(default=0.0, ge=0.0, lt=1.0)
 
 

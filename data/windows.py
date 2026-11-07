@@ -1,6 +1,6 @@
-import json
 from dataclasses import dataclass
 from pathlib import Path
+import fsspec
 import numpy as np
 import torch
 from torch import Tensor
@@ -8,7 +8,7 @@ from torch.utils.data import Dataset
 from torchcodec.decoders import AudioDecoder, VideoDecoder
 from torchcodec.transforms import Resize
 from data.control_types import ControlLayout
-from data.data_types import ActionWindowConfig, DatasetConfig
+from data.data_types import ActionWindowConfig, DatasetConfig, SourceConfig
 from data.recorded_capture import read_recorded_capture
 from data.recorded_controls import controls_for_window
 from models.audio.spatial import ambisonic_microphones
@@ -23,30 +23,30 @@ class PoolRecord:
     audio_path: str | None = None
 
 
-def load_pool_records(catalog: Path, split: str) -> list[PoolRecord]:
-    records = []
-    for source in sorted(catalog.glob("*_sources.jsonl")):
-        if source.name.startswith("excluded_"):
-            continue
-        with source.open() as handle:
-            for line in handle:
-                entry = json.loads(line)
-                if entry["source"]["split"] == split:
-                    records.append(
-                        PoolRecord(
-                            entry["source"]["path"],
-                            entry["provenance"]["dataset"],
-                            entry["source"].get("actions_path"),
-                            entry["source"].get("audio_path"),
-                        )
-                    )
-    return records
+def has_split(source: SourceConfig, split: str) -> bool:
+    filesystem, path = fsspec.core.url_to_fs(source.splits.format(split=split))
+    return filesystem.exists(path)
+
+
+def source_records(name: str, source: SourceConfig, split: str) -> list[PoolRecord]:
+    with fsspec.open(source.splits.format(split=split), "rt") as handle:
+        keys = handle.read().split()
+    return [
+        PoolRecord(
+            source.video.format(key=key),
+            name,
+            None if source.actions is None else source.actions.format(key=key),
+            None if source.audio is None else source.audio.format(key=key),
+        )
+        for key in keys
+    ]
 
 
 class PoolWindowDataset(Dataset):
     def __init__(
         self,
         records: list[PoolRecord],
+        weights: dict[str, float] | None,
         config: DatasetConfig,
         encoder: FrozenEncoderConfig,
         total_frames: int,
@@ -57,9 +57,7 @@ class PoolWindowDataset(Dataset):
         self.audio_paths = np.array([record.audio_path or "" for record in records])
         self.action_paths = np.array([record.actions_path or "" for record in records])
         self.datasets = np.array([record.dataset for record in records])
-        weights = config.group_weights or {
-            name: float((self.datasets == name).sum()) for name in np.unique(self.datasets)
-        }
+        weights = weights or {name: float((self.datasets == name).sum()) for name in np.unique(self.datasets)}
         present = [name for name in weights if (self.datasets == name).any()]
         self.groups = [np.flatnonzero(self.datasets == name) for name in present]
         self.group_weights = torch.tensor([weights[name] for name in present])
@@ -72,6 +70,7 @@ class PoolWindowDataset(Dataset):
         self.waveform_channels = encoder.waveform_channels
         self.duration = total_frames / encoder.video_rate
         self.samples = round(self.duration * self.sample_rate)
+        self.history_samples = encoder.audio_history_samples
         self.action_config = (
             ActionWindowConfig(
                 context_frames=encoder.context_frames,
@@ -87,6 +86,13 @@ class PoolWindowDataset(Dataset):
     def __len__(self) -> int:
         return self.config.windows
 
+    def video_decoder(self, record_index: int) -> VideoDecoder:
+        return VideoDecoder(
+            str(self.paths[record_index]),
+            seek_mode="approximate",
+            transforms=[Resize((self.image_size, self.image_size))],
+        )
+
     def audio_decoder(self, record_index: int) -> AudioDecoder:
         audio_path = str(self.audio_paths[record_index])
         if audio_path and self.waveform_channels == 4:
@@ -101,11 +107,7 @@ class PoolWindowDataset(Dataset):
 
     def read_window(self, record_index: int, generator: torch.Generator) -> tuple[Tensor, Tensor, float] | None:
         try:
-            video = VideoDecoder(
-                str(self.paths[record_index]),
-                seek_mode="approximate",
-                transforms=[Resize((self.image_size, self.image_size))],
-            )
+            video = self.video_decoder(record_index)
             audio = self.audio_decoder(record_index)
             available = min(
                 float(video.metadata.duration_seconds or 0.0), float(audio.metadata.duration_seconds or 0.0)
@@ -120,7 +122,19 @@ class PoolWindowDataset(Dataset):
             return None
         if waveform.shape[-1] < self.samples:
             return None
-        return frames, self.waveform_layout(waveform[:, : self.samples]), start
+        history = self.audio_history(audio, start, waveform.shape[0])
+        return frames, self.waveform_layout(torch.cat((history, waveform[:, : self.samples]), dim=-1)), start
+
+    def audio_history(self, audio: AudioDecoder, start: float, channels: int) -> Tensor:
+        if not self.history_samples or start <= 0:
+            return torch.zeros(channels, self.history_samples)
+        try:
+            history = audio.get_samples_played_in_range(
+                start_seconds=max(0.0, start - self.history_samples / self.sample_rate), stop_seconds=start
+            ).data[:, -self.history_samples :]
+        except (RuntimeError, ValueError, IndexError):
+            history = torch.zeros(channels, 0)
+        return torch.nn.functional.pad(history, (self.history_samples - history.shape[-1], 0))
 
     def recorded_actions(self, record_index: int, start: float) -> Tensor | None:
         assert self.action_config is not None
@@ -136,8 +150,7 @@ class PoolWindowDataset(Dataset):
             return None
 
     def __getitem__(self, index: int) -> dict[str, Tensor]:
-        source_index = index % self.config.distinct_windows if self.config.distinct_windows else index
-        generator = torch.Generator().manual_seed(self.config.seed * 1_000_003 + source_index)
+        generator = torch.Generator().manual_seed(self.config.seed * 1_000_003 + index)
         for attempt in range(self.config.attempts):
             group = self.groups[int(torch.multinomial(self.group_weights, 1, generator=generator))]
             record_index = group[int(torch.randint(len(group), (1,), generator=generator))]
@@ -166,7 +179,7 @@ class SyntheticWindowDataset(PoolWindowDataset):
     def read_window(self, record_index: int, generator: torch.Generator) -> tuple[Tensor, Tensor, float] | None:
         return (
             torch.rand(self.total_frames, 3, self.image_size, self.image_size, generator=generator),
-            self.waveform_layout(0.1 * torch.randn(2, self.samples, generator=generator)),
+            self.waveform_layout(0.1 * torch.randn(2, self.history_samples + self.samples, generator=generator)),
             0.0,
         )
 
@@ -174,29 +187,23 @@ class SyntheticWindowDataset(PoolWindowDataset):
 def build_dataset(
     config: DatasetConfig, encoder: FrozenEncoderConfig, total_frames: int, layout: ControlLayout
 ) -> PoolWindowDataset:
-    if config.catalog == "synthetic":
-        return SyntheticWindowDataset([PoolRecord("synthetic", "synthetic")], config, encoder, total_frames, layout)
-    return PoolWindowDataset(load_pool_records(Path(config.catalog), "train"), config, encoder, total_frames, layout)
-
-
-def build_validation_datasets(
-    config: DatasetConfig, encoder: FrozenEncoderConfig, total_frames: int, layout: ControlLayout
-) -> dict[str, PoolWindowDataset]:
-    config = config.model_copy(
-        update={
-            "windows": config.validation_windows,
-            "mirror_probability": 0.0,
-            "distinct_windows": 0,
-            "group_weights": None,
-        }
-    )
-    if config.catalog == "synthetic":
-        return {"synthetic": build_dataset(config, encoder, total_frames, layout)}
-    records = load_pool_records(Path(config.catalog), "validation")
-    names = sorted({record.dataset for record in records})
-    return {
-        name: PoolWindowDataset(
-            [record for record in records if record.dataset == name], config, encoder, total_frames, layout
+    if config.synthetic:
+        return SyntheticWindowDataset(
+            [PoolRecord("synthetic", "synthetic")], None, config, encoder, total_frames, layout
         )
-        for name in names
+    weights = {name: source.weight for name, source in config.sources.items() if source.weight > 0}
+    records = [record for name in weights for record in source_records(name, config.sources[name], "train")]
+    return PoolWindowDataset(records, weights, config, encoder, total_frames, layout)
+
+
+def build_evaluation_datasets(
+    config: DatasetConfig, split: str, encoder: FrozenEncoderConfig, total_frames: int, layout: ControlLayout
+) -> dict[str, PoolWindowDataset]:
+    config = config.model_copy(update={"windows": config.validation_windows, "mirror_probability": 0.0})
+    if config.synthetic:
+        return {"synthetic": build_dataset(config, encoder, total_frames, layout)}
+    return {
+        name: PoolWindowDataset(source_records(name, source, split), None, config, encoder, total_frames, layout)
+        for name, source in config.sources.items()
+        if has_split(source, split)
     }

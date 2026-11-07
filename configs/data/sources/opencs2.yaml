@@ -1,0 +1,6 @@
+data:
+  sources:
+    opencs2:
+      root: ???
+      splits: ${.root}/splits/opencs2/{split}.txt
+      video: ${.root}/{key}/video.mp4

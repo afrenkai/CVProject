@@ -1,13 +1,13 @@
-module load cuda ffmpeg
+module load cuda ffmpeg git
 export LD_LIBRARY_PATH="$(dirname "$(dirname "$(which ffmpeg)")")/lib:${LD_LIBRARY_PATH:-}"
 export PATH="$HOME/.local/bin:$PATH"
 export SPEAKUP_ROOT=/scratch/afrenk/speakup
-export SPEAKUP_CATALOG="$SPEAKUP_ROOT/catalog_stage1" SPEAKUP_RUNS="$SPEAKUP_ROOT/stage1" SPEAKUP_LATENTS="$SPEAKUP_ROOT/latents"
+export SPEAKUP_RUNS="$SPEAKUP_ROOT/stage1" SPEAKUP_LATENTS="$SPEAKUP_ROOT/latents"
 export HF_HOME=/scratch/afrenk/huggingface HF_TOKEN_PATH="$HOME/.cache/huggingface/token"
 export UV_CACHE_DIR=/scratch/afrenk/uv_cache
 export TRITON_CACHE_DIR="$SPEAKUP_ROOT/cache/triton" TORCHINDUCTOR_CACHE_DIR="$SPEAKUP_ROOT/cache/inductor"
 export PYTHONUNBUFFERED=1 OMP_NUM_THREADS=4
-SPEAKUP_CAPABILITY=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader | head -1 | cut -d. -f1)
+SPEAKUP_CAPABILITY=$( (nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null || true) | head -1 | cut -d. -f1)
 case "${SPEAKUP_EXTRA:-$SPEAKUP_CAPABILITY}" in
     8) SPEAKUP_EXTRA=ampere ;;
     9) SPEAKUP_EXTRA=hopper ;;

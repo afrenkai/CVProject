@@ -14,7 +14,6 @@ uv sync --frozen --extra "$SPEAKUP_EXTRA"
 source "$UV_PROJECT_ENVIRONMENT/bin/activate"
 
 CONFIG="${CONFIG:-configs/pretrain/mvp.yaml}"
-OUTPUT="${OUTPUT:?set OUTPUT to the latent cache directory, e.g. $SPEAKUP_LATENTS/mvp_v1}"
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
-python -m data.latent_cache "$CONFIG" "$OUTPUT" \
+python -m data.latent_cache "$CONFIG" \
     --split "${SPLIT:-train}" --start "${START:-0}" --count "${COUNT:-25000}" "$@"

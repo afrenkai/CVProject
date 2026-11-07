@@ -1,0 +1,16 @@
+inherit: [mvp_large_actions.yaml]
+
+objective:
+  slim_lsd:
+    weight: 1.0
+    start: 0
+    ramp_steps: 200
+
+optimizer:
+  learning_rate: 5.0e-5
+  warmup_steps: 200
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_lsd_v1
+  initialize_from: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_v1/checkpoint-4689
+  epochs: 1

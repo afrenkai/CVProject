@@ -25,11 +25,6 @@ class FrozenChannelNormalizer(nn.Module):
         # eff z -scaling (x - mu) / sqrt(sigma**2)
         return (latents - self.mean) / self.standard_deviation
 
-    @jaxtyped(typechecker=beartype)
-    def denormalize(self, latents: Float[Tensor, "*tokens channel"]) -> Float[Tensor, "*tokens channel"]:
-        # undo norm is also v easy, just x * (sqrt(sigma**2)) + mu
-        return latents * self.standard_deviation + self.mean
-
 
 class AudioVisualNormalizer(nn.Module):
     def __init__(
@@ -43,7 +38,7 @@ class AudioVisualNormalizer(nn.Module):
         # wrapper around the nonsense I wrote on top.
         basically takes in mu_v, std_v, mu_a, std_a
         and uses the methods from the FrozenChannelNormalizer to give audio and video
-        capability to be normed and de-normed
+        capability to be normed
         """
         super().__init__()
         self.video = FrozenChannelNormalizer(video_mean, video_standard_deviation)
@@ -60,18 +55,6 @@ class AudioVisualNormalizer(nn.Module):
         self, latents: Float[Tensor, "*tokens audio_feature"]
     ) -> Float[Tensor, "*tokens audio_feature"]:
         return self.audio(latents)
-
-    @jaxtyped(typechecker=beartype)
-    def denormalize_video(
-        self, latents: Float[Tensor, "*tokens video_feature"]
-    ) -> Float[Tensor, "*tokens video_feature"]:
-        return self.video.denormalize(latents)
-
-    @jaxtyped(typechecker=beartype)
-    def denormalize_audio(
-        self, latents: Float[Tensor, "*tokens audio_feature"]
-    ) -> Float[Tensor, "*tokens audio_feature"]:
-        return self.audio.denormalize(latents)
 
 
 class RunningMoments:

@@ -1,10 +1,10 @@
-inherit: [stage1.yaml]
+inherit: [mvp.yaml]
 
 data:
-  catalog: synthetic
-  group_weights: null
+  synthetic: true
+  latent_cache: outputs/cpu_cache
+  validation_windows: 4
   windows: 400
-  distinct_windows: 2
   mirror_probability: 0.0
   workers: 0
 
@@ -39,6 +39,5 @@ trainer:
   normalizer_windows: 2
   log_every: 10
   checkpoint_steps: 100
-  snapshot_steps: 0
   max_steps: 200
   wandb_mode: disabled

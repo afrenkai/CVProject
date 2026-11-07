@@ -9,7 +9,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Subset
 from configs.loading import load_run_settings
 from data.control_types import ControlLayout
-from data.windows import PoolWindowDataset, build_dataset, build_validation_datasets
+from data.windows import PoolWindowDataset, build_dataset, build_evaluation_datasets
 from models.joint_encoder import JointEncoder, build_encoder_config
 from training.training_types import PretrainConfig
 
@@ -20,6 +20,9 @@ class CachedWindowDataset(Dataset):
         assert self.shards, f"No latent shards in {directory}"
         self.lengths = [int(json.loads(self.metadata(shard)["windows"])) for shard in self.shards]
         self.starts = [sum(self.lengths[:index]) for index in range(len(self.lengths))]
+        assert [
+            int(shard.stem.removeprefix("shard_")) for shard in self.shards
+        ] == self.starts, f"Latent shards in {directory} are not contiguous"
         self.total = sum(self.lengths) if windows is None else min(windows, sum(self.lengths))
         self.handles: dict[int, object] = {}
         self.datasets = json.loads(self.metadata(self.shards[0])["datasets"])
@@ -59,6 +62,7 @@ def write_shards(
 ) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     names = sorted(set(dataset.datasets.tolist()))
+    metadata = {"datasets": json.dumps(names)}
     for shard_start in range(start, min(start + count, len(dataset)), shard_windows):
         path = directory / f"shard_{shard_start:08d}.safetensors"
         if path.exists():
@@ -75,36 +79,62 @@ def write_shards(
         save_file(
             {name: torch.cat(values).contiguous() for name, values in parts.items()},
             str(partial),
-            metadata={"windows": json.dumps(len(indices)), "datasets": json.dumps(names)},
+            metadata={**metadata, "windows": json.dumps(len(indices))},
         )
         partial.rename(path)
         print(f"wrote {path} ({len(indices)} windows)", flush=True)
 
 
-def main(config_path: Path, output: Path, split: str, start: int, count: int, overrides: list[str]) -> None:
+def main(
+    config_path: Path,
+    split: str,
+    start: int,
+    count: int,
+    overrides: list[str],
+) -> None:
     config = PretrainConfig.model_validate(load_run_settings(config_path, overrides))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     encoder_config = build_encoder_config(config.encoder, bfloat16=config.trainer.precision == "bf16")
     encoder = JointEncoder(encoder_config, device).eval()
+    output = Path(config.data.latent_cache)
     layout = ControlLayout()
     settings = {"shard_windows": 1024, "batch_size": 32, "workers": config.data.workers, "device": device}
     if split == "train":
         dataset = build_dataset(config.data, encoder_config, config.encoder.total_frames, layout)
-        write_shards(dataset, encoder, output / "train", start, count, **settings)
+        write_shards(
+            dataset,
+            encoder,
+            output / "train",
+            start,
+            count,
+            **settings,
+        )
         return
-    for name, dataset in build_validation_datasets(
-        config.data, encoder_config, config.encoder.total_frames, layout
+    for name, dataset in build_evaluation_datasets(
+        config.data, split, encoder_config, config.encoder.total_frames, layout
     ).items():
-        write_shards(dataset, encoder, output / "validation" / name, 0, len(dataset), **settings)
+        write_shards(
+            dataset,
+            encoder,
+            output / split / name,
+            0,
+            len(dataset),
+            **settings,
+        )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=Path)
-    parser.add_argument("output", type=Path)
-    parser.add_argument("--split", choices=["train", "validation"], default="train")
+    parser.add_argument("--split", choices=["train", "validation", "test"], default="train")
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--count", type=int, default=1 << 40)
     parser.add_argument("overrides", nargs="*")
     command = parser.parse_args()
-    main(command.config, command.output, command.split, command.start, command.count, command.overrides)
+    main(
+        command.config,
+        command.split,
+        command.start,
+        command.count,
+        command.overrides,
+    )

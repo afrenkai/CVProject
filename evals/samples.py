@@ -1,28 +1,19 @@
 import torch
 from einops import rearrange, repeat
 from torch import Tensor
-from models.joint_encoder import JointEncoder
 from training.objective import WorldModelObjective
 from transport.solvers import solve_flow_map
-
-
-def batch_latents(encoder: JointEncoder | None, batch: dict[str, Tensor]) -> tuple[Tensor, Tensor]:
-    if "video" in batch:
-        return batch["video"], batch["audio"]
-    return encoder.encode(batch["frames"], batch["waveform"])
 
 
 @torch.no_grad()
 def rollout(
     objective: WorldModelObjective,
-    encoder: JointEncoder | None,
     batch: dict[str, Tensor],
     integration_steps: int,
     seed: int,
 ) -> dict[str, Tensor]:
-    video, audio = batch_latents(encoder, batch)
-    video = objective.normalizer.normalize_video(video.float())
-    audio = objective.normalizer.normalize_audio(audio.float())
+    video = objective.normalizer.normalize_video(batch["video"].float())
+    audio = objective.normalizer.normalize_audio(batch["audio"].float())
     context_steps = objective.context_steps
     conditioned = objective.encode_actions(batch["actions"], batch["action_present"])
     context_video, context_audio = video[:, :context_steps], audio[:, :context_steps]
@@ -37,7 +28,6 @@ def rollout(
         context_audio,
         conditioned[:, context_steps:],
         objective.transport.time_grid(integration_steps, noise_video),
-        True,
         conditioned[:, :context_steps],
     )
     return {
@@ -48,46 +38,6 @@ def rollout(
         "predicted_video": objective.transport.video_frames(sampled_video, context_video),
         "predicted_audio": sampled_audio,
     }
-
-
-def horizon_errors(result: dict[str, Tensor]) -> dict[str, Tensor]:
-    video_persistence = result["context_video"][:, -1:].expand_as(result["true_video"])
-    audio_persistence = result["context_audio"][:, -1:].expand_as(result["true_audio"])
-    return {
-        "video": (result["predicted_video"] - result["true_video"]).square().mean(dim=(0, 2, 3)),
-        "video_persistence": (video_persistence - result["true_video"]).square().mean(dim=(0, 2, 3)),
-        "audio": (result["predicted_audio"] - result["true_audio"]).square().mean(dim=(0, 2)),
-        "audio_persistence": (audio_persistence - result["true_audio"]).square().mean(dim=(0, 2)),
-        "video_spread": result["predicted_video"].std(dim=(0, 2, 3)) / result["true_video"].std(dim=(0, 2, 3)),
-        "audio_spread": result["predicted_audio"].std(dim=(0, 2)) / result["true_audio"].std(dim=(0, 2)),
-    }
-
-
-def sweep_rollouts(
-    objective: WorldModelObjective,
-    encoder: JointEncoder | None,
-    batch: dict[str, Tensor],
-    integration_steps: tuple[int, ...],
-    seed: int,
-) -> dict[int, dict[str, Tensor]]:
-    return {
-        steps: {name: tensor.float() for name, tensor in rollout(objective, encoder, batch, steps, seed).items()}
-        for steps in integration_steps
-    }
-
-
-def sweep_metrics(errors: dict[int, dict[str, Tensor]]) -> dict[str, float]:
-    reference = errors[max(errors)]
-    metrics = {
-        "samples/video_persistence_mse": reference["video_persistence"].mean().item(),
-        "samples/audio_persistence_mse": reference["audio_persistence"].mean().item(),
-    }
-    for steps, values in errors.items():
-        metrics[f"samples/video_mse_nfe{steps}"] = values["video"].mean().item()
-        metrics[f"samples/audio_mse_nfe{steps}"] = values["audio"].mean().item()
-        metrics[f"samples/video_spread_nfe{steps}"] = values["video_spread"].mean().item()
-        metrics[f"samples/audio_spread_nfe{steps}"] = values["audio_spread"].mean().item()
-    return metrics
 
 
 def ensemble_crps(samples: Tensor, target: Tensor) -> Tensor:
@@ -103,21 +53,17 @@ def ensemble_crps(samples: Tensor, target: Tensor) -> Tensor:
 @torch.no_grad()
 def ensemble_errors(
     objective: WorldModelObjective,
-    encoder: JointEncoder | None,
     batch: dict[str, Tensor],
     members: int,
     integration_steps: int,
     seed: int,
 ) -> dict[str, Tensor]:
-    video, audio = batch_latents(encoder, batch)
-    batch = {"video": video, "audio": audio, "actions": batch["actions"], "action_present": batch["action_present"]}
+    batch = {name: batch[name] for name in ("video", "audio", "actions", "action_present")}
     windows = batch["video"].shape[0]
     repeated = {
         name: repeat(tensor, "window ... -> (member window) ...", member=members) for name, tensor in batch.items()
     }
-    result = {
-        name: tensor.float() for name, tensor in rollout(objective, encoder, repeated, integration_steps, seed).items()
-    }
+    result = {name: tensor.float() for name, tensor in rollout(objective, repeated, integration_steps, seed).items()}
     totals: dict[str, Tensor] = {}
     for modality, reduce in (("video", (0, 2, 3)), ("audio", (0, 2))):
         predicted = rearrange(

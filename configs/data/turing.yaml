@@ -1,0 +1,22 @@
+data:
+  sources:
+    audioset:
+      root: /scratch/afrenk/Project-local/datasets/av_benchmarks_v1/audioset/official_av
+    kinetics400:
+      root: /scratch/afrenk/Project-local/artifacts/stage1_frozen_large_20261022/overfit_runtime/data/stage1_trainval_v1/kinetics
+    sphere360:
+      root: /scratch/afrenk/speakup/data/sphere360
+    d2e:
+      root: /archive/afrenk/avwm_20261022/d2e
+      audio_root: /scratch/afrenk/speakup/d2e_audio
+    rainbow_six:
+      root: /archive/afrenk/avwm_20261022/d2e
+      audio_root: /scratch/afrenk/speakup/d2e_audio
+    opencs2:
+      root: /scratch/afrenk/speakup/opencs2/rounds
+    fairplay:
+      root: /scratch/afrenk/Project-local/artifacts/stage1_frozen_large_20261022/overfit_runtime/data/stage1_trainval_v1/fairplay
+    tau_av:
+      root: /scratch/afrenk/Project-local/artifacts/stage1_frozen_large_20261022/overfit_runtime/data/stage1_trainval_v1/tau
+    greatest_hits:
+      root: /scratch/afrenk/speakup/data/greatest_hits/vis-data

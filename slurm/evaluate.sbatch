@@ -20,7 +20,7 @@ while [ "$(date +%s)" -lt "$(( SLURM_JOB_END_TIME - 3600 ))" ]; do
     for checkpoint in $(ls -d "$RUN"/${PATTERN:-checkpoint-*000} 2>/dev/null | sort -t- -k2 -n); do
         [ -e "$checkpoint/evaluated" ] && continue
         echo "Evaluating $checkpoint"
-        torchrun --standalone --nproc_per_node 1 -m training.evaluate "$RUN" "$checkpoint" "$@" \
+        torchrun --standalone --nproc_per_node 1 -m evals.evaluate "$RUN" "$checkpoint" "$@" \
             || echo "Evaluation of $checkpoint failed"
     done
     [ -n "${ONCE:-}" ] && break
