@@ -1,0 +1,6 @@
+data:
+  sources:
+    greatest_hits:
+      root: ???
+      splits: ${.root}/splits/greatest_hits/{split}.txt
+      video: ${.root}/{key}.mp4

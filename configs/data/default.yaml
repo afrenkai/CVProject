@@ -1,6 +1,0 @@
-manifest: null
-sample_rate: null
-frames_per_second: 30
-audio_window_steps: null
-batch_size: 16
-num_workers: 4

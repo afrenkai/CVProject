@@ -1,27 +1,22 @@
-from typing import Self
 import torch
 from beartype import beartype
 from einops import rearrange
 from jaxtyping import Float, jaxtyped
-from omegaconf import DictConfig, OmegaConf
 from torch import Tensor
-from transport.solvers import audio_clock
-from transport.types import AudioVisualInterpolant, TransportConfig
+from transport.transport_types import AudioVisualInterpolant, TransportConfig
 
 
 class AudioVisualFlowTransport:
     def __init__(self, config: TransportConfig) -> None:
         self.config = config
 
-    @classmethod
-    def from_omegaconf(cls, config: DictConfig) -> Self:
-        values = OmegaConf.to_container(config, resolve=True)
-        return cls(TransportConfig.model_validate(values))
-
+    # Noise-ward rational shift, mirrored for t=0 noise / t=1 data. Matches the t=1-noise forms in
+    # facebookresearch/Flow-World-Models transport/integrators.py (ode.__init__) and
+    # black-forest-labs/flux-action processing/packing.py (rational_time_shift).
     @jaxtyped(typechecker=beartype)
     def shift_time(self, time: Float[Tensor, "..."]) -> Float[Tensor, "..."]:
         shift = self.config.time_distribution.shift
-        return shift * time / (1.0 + (shift - 1.0) * time)
+        return time / (shift - (shift - 1.0) * time)
 
     @jaxtyped(typechecker=beartype)
     def sample_time(self, reference: Float[Tensor, "batch ..."]) -> Float[Tensor, "batch"]:  # noqa: F821
@@ -33,20 +28,25 @@ class AudioVisualFlowTransport:
         helpful docs are torch.randn/rand for normal and unif, respectively.
         """
         distribution = self.config.time_distribution
-        if distribution.type == "uniform":
-            time = torch.rand(
-                reference.shape[0],
-                device=reference.device,
-                dtype=reference.dtype,
-            )
-        else:
-            normal = torch.randn(
-                reference.shape[0],
-                device=reference.device,
-                dtype=reference.dtype,
-            )
-            time = torch.sigmoid(distribution.mean + distribution.standard_deviation * normal)
+        normal = torch.randn(reference.shape[0], device=reference.device, dtype=reference.dtype)
+        time = torch.sigmoid(distribution.mean + distribution.standard_deviation * normal)
         return self.shift_time(time)
+
+    @jaxtyped(typechecker=beartype)
+    def video_target(
+        self,
+        target_video: Float[Tensor, "batch time patch video_feature"],
+        context_video: Float[Tensor, "batch context_time patch video_feature"],
+    ) -> Float[Tensor, "batch time patch video_feature"]:
+        return target_video - context_video[:, -1:]
+
+    @jaxtyped(typechecker=beartype)
+    def video_frames(
+        self,
+        sampled_video: Float[Tensor, "batch time patch video_feature"],
+        context_video: Float[Tensor, "batch context_time patch video_feature"],
+    ) -> Float[Tensor, "batch time patch video_feature"]:
+        return sampled_video + context_video[:, -1:]
 
     @jaxtyped(typechecker=beartype)
     def sample_interpolant(
@@ -59,10 +59,7 @@ class AudioVisualFlowTransport:
         time = self.sample_time(target_video)
         # we need tensor shapes to match, same as np.reshape(reference_tensor[-1])
         video_time = rearrange(time, "batch -> batch 1 1 1")
-        audio_time, audio_derivative = audio_clock(time, self.config.audio_delay)
-        # see above comment
-        audio_time = rearrange(audio_time, "batch -> batch 1 1")
-        audio_derivative = rearrange(audio_derivative, "batch -> batch 1 1")
+        audio_time = rearrange(time, "batch -> batch 1 1")
         # subject to change, but usually a constant sigma is ok, we aren't doing VP/VESDE here
         # TODO: investigate if VP/VE SDE with a min and max sigma performs better here
         video_noise = self.config.noise_standard_deviation * torch.randn_like(target_video)
@@ -72,7 +69,7 @@ class AudioVisualFlowTransport:
             video_state=(1.0 - video_time) * video_noise + video_time * target_video,
             audio_state=(1.0 - audio_time) * audio_noise + audio_time * target_audio,
             video_velocity=target_video - video_noise,
-            audio_velocity=audio_derivative * (target_audio - audio_noise),
+            audio_velocity=target_audio - audio_noise,
             time=time,
         )
 

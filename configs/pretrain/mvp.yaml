@@ -1,0 +1,50 @@
+inherit: [../data/mix.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_v1
+  windows: 200000
+  validation_windows: 128
+  mirror_probability: 0.5
+  workers: 10
+
+encoder:
+  video_model: vit_base_patch16_dinov3.lvd1689m
+  video_feature_dimension: 768
+  video_layers: [3, 6, 9, 12]
+  image_size: 256
+  audio_model: mispeech/dasheng-base
+  video_rate: 10
+  video_frames_per_step: 1
+  context_frames: 12
+  total_frames: 40
+  spatial_audio: true
+
+model:
+  backbone: {hidden_dimension: 512, heads: 8, layers: 8}
+  diffusion_head: {hidden_dimension: 1024, heads: 8, layers: 2}
+  mlp_ratio: 2.0
+  spatial_grid: [16, 16]
+  attention_backend: flex_flash
+
+objective:
+  context_noise: 0.2
+  time_shift: 3.0
+
+optimizer:
+  learning_rate: 3.0e-4
+  weight_decay: 0.1
+  warmup_steps: 1000
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_v1
+  epochs: 3
+  batch_size: 32
+  gradient_accumulation: 2
+  precision: bf16
+  activation_checkpointing: true
+  ema_decay: 0.999
+  eval_steps: 1000
+  checkpoint_steps: 500
+  wandb_project: Speakup
+  wandb_mode: online
+  compile: true

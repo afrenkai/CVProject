@@ -1,9 +1,0 @@
-defaults:
-  - corpus
-  - _self_
-
-input_staging:
-  directory: ${oc.env:TMPDIR,/tmp}/speakup-${oc.env:USER}-inputs
-  maximum_source_bytes: 17179869184
-  maximum_cache_bytes: 68719476736
-  minimum_free_bytes: 8589934592

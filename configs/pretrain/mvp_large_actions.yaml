@@ -1,0 +1,15 @@
+inherit: [mvp_large.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_actions_v1
+  recorded_actions: true
+
+encoder:
+  context_frames: 36
+  total_frames: 64
+
+objective:
+  action_dropout: 0.1
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_v1

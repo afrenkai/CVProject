@@ -1,0 +1,9 @@
+data:
+  sources:
+    rainbow_six:
+      root: ???
+      audio_root: ???
+      splits: ${.root}/splits/rainbow_six/{split}.txt
+      video: ${.root}/media/{key}.mkv
+      audio: ${.audio_root}/{key}.mka
+      actions: ${.root}/media/{key}.mcap

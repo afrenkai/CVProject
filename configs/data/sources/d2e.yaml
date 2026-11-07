@@ -1,0 +1,9 @@
+data:
+  sources:
+    d2e:
+      root: ???
+      audio_root: ???
+      splits: ${.root}/splits/d2e/{split}.txt
+      video: ${.root}/media/{key}.mkv
+      audio: ${.audio_root}/{key}.mka
+      actions: ${.root}/media/{key}.mcap

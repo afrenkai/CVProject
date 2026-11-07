@@ -1,8 +1,0 @@
-defaults:
-  - transport: default
-  - _self_
-
-#whatever the default hydra fields are
-# url maybe, retries, etc
-# we use this to extend
-# refer to https://hydra.cc/docs/patterns/extending_configs/
