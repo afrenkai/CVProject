@@ -1,13 +1,14 @@
 from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
 from configs.config_types import FrozenModel
-from data.control_types import ControlLayout
+from data.control_types import ControlLayout, Opencs2InputMap
 
 
 class SourceConfig(FrozenModel):
     root: str
     audio_root: str | None = None
     splits: str
-    video: str
+    video: str | None = None
+    samples: str | None = None
     audio: str | None = None
     actions: str | None = None
     weight: NonNegativeFloat = 0.0
@@ -35,3 +36,4 @@ class ActionWindowConfig(FrozenModel):
     maximum_clock_residual: PositiveFloat = 1 / 60
     maximum_screen_gap: PositiveFloat = 0.15
     control_layout: ControlLayout = Field(default_factory=ControlLayout)
+    opencs2_inputs: Opencs2InputMap = Field(default_factory=Opencs2InputMap)

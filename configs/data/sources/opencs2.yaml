@@ -3,4 +3,4 @@ data:
     opencs2:
       root: ???
       splits: ${.root}/splits/opencs2/{split}.txt
-      video: ${.root}/{key}/video.mp4
+      samples: ${.root}/index/wds_samples.parquet

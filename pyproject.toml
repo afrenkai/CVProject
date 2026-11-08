@@ -42,6 +42,7 @@ dependencies = [
     "pandas",
     "peft",
     "Pillow",
+    "pyarrow",
     "pre-commit",
     "protobuf",
     "curl-cffi",
