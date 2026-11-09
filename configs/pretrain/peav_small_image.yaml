@@ -1,0 +1,13 @@
+inherit: [mvp.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_peav_small_image_v1
+
+encoder:
+  video_encoder: pe_av
+  video_model: facebook/pe-av-small
+  video_feature_dimension: 1024
+  video_layers: [6, 12, 18, 24]
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_peav_small_image_v1

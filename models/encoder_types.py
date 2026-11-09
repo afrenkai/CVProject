@@ -1,9 +1,11 @@
+import json
 from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, NonNegativeInt, PositiveFloat, PositiveInt
 from configs.config_types import FrozenModel
 
-AudioEncoderName = Literal["dasheng", "audiomosaic"]
+AudioEncoderName = Literal["dasheng", "audiomosaic", "pe_av"]
+VideoEncoderName = Literal["dino", "pe_av"]
 
 
 class AudioMosaicPreprocessing(FrozenModel):
@@ -39,6 +41,7 @@ class AudioMosaicArchitecture(BaseModel):
 
 
 class EncoderConfig(FrozenModel):
+    video_encoder: VideoEncoderName = "dino"
     video_model: str = "vit_large_patch16_dinov3.lvd1689m"
     video_feature_dimension: PositiveInt = 1024
     video_layers: tuple[PositiveInt, ...] = (6, 12, 18, 24)
@@ -54,7 +57,10 @@ class EncoderConfig(FrozenModel):
 
 
 class FrozenEncoderConfig(FrozenModel):
+    video_encoder: VideoEncoderName = "dino"
     video_model: str = "vit_large_patch16_dinov3.lvd1689m"
+    video_model_directory: Path | None = None
+    video_weights: str | None = None
     video_cache_directory: Path | None = None
     video_layers: tuple[PositiveInt, ...] = (6, 12, 18, 24)
     video_feature_dimension: PositiveInt = 1024
@@ -65,6 +71,7 @@ class FrozenEncoderConfig(FrozenModel):
     context_frames: PositiveInt = 60
     audio_encoder: AudioEncoderName = "dasheng"
     audio_model_directory: Path
+    audio_weights: str | None = None
     audio_feature_dimension: PositiveInt = 1536
     audio_native_frame_rate: PositiveInt = 25
     audio_frame_repeat: PositiveInt = 2
@@ -108,3 +115,28 @@ class FrozenEncoderConfig(FrozenModel):
     @property
     def audio_latent_dimension(self) -> int:
         return self.audio_feature_dimension * self.audio_channels * self.audio_tokens_per_step
+
+    @property
+    def latent_info(self) -> str:
+        settings = self.model_dump(
+            mode="json",
+            include={
+                "video_encoder",
+                "video_layers",
+                "image_size",
+                "video_rate",
+                "video_frames_per_step",
+                "context_frames",
+                "audio_encoder",
+                "sample_rate",
+                "audio_tokens_per_step",
+                "audio_history_steps",
+                "audio_token_parts",
+                "spatial_sample_rate",
+                "spatial_mel_bands",
+                "ambisonic",
+            },
+        )
+        settings["video_model"] = self.video_weights or self.video_model
+        settings["audio_model"] = self.audio_weights or str(self.audio_model_directory)
+        return json.dumps(settings, sort_keys=True)

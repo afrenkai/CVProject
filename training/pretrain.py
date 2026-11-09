@@ -72,16 +72,18 @@ def training_arguments(config: PretrainConfig) -> TrainingArguments:
     )
 
 
-def load_datasets(config: PretrainConfig, rank: int) -> tuple[Dataset, dict[str, Dataset] | None]:
+def load_datasets(
+    config: PretrainConfig, encoder_config: FrozenEncoderConfig, rank: int
+) -> tuple[Dataset, dict[str, Dataset] | None]:
     data_config = config.data
     cache = Path(data_config.latent_cache)
-    dataset = CachedWindowDataset(cache / "train", data_config.windows)
+    dataset = CachedWindowDataset(cache / "train", data_config.windows, encoder_config)
     if rank == 0:
         print(f"Training on {len(dataset)} cached windows from {cache}", flush=True)
     if not data_config.validation_windows:
         return dataset, None
     return dataset, {
-        directory.name: CachedWindowDataset(directory, data_config.validation_windows)
+        directory.name: CachedWindowDataset(directory, data_config.validation_windows, encoder_config)
         for directory in sorted((cache / "validation").iterdir())
     }
 
@@ -158,7 +160,7 @@ def main(config: PretrainConfig) -> None:
     resume = get_last_checkpoint(str(output))
 
     encoder_config = build_encoder_config(config.encoder, bfloat16=trainer_config.precision == "bf16")
-    dataset, validation = load_datasets(config, rank)
+    dataset, validation = load_datasets(config, encoder_config, rank)
     normalizer = load_normalizer(output, dataset, config, arguments)
 
     torch.manual_seed(config.data.seed)

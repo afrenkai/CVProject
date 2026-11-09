@@ -10,12 +10,13 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from configs.loading import load_run_settings
 from data.control_types import ControlLayout
 from data.windows import PoolWindowDataset, build_dataset, build_evaluation_datasets
+from models.encoder_types import FrozenEncoderConfig
 from models.joint_encoder import JointEncoder, build_encoder_config
 from training.training_types import PretrainConfig
 
 
 class CachedWindowDataset(Dataset):
-    def __init__(self, directory: Path, windows: int | None = None) -> None:
+    def __init__(self, directory: Path, windows: int | None = None, encoder: FrozenEncoderConfig | None = None) -> None:
         self.shards = sorted(directory.glob("shard_*.safetensors"))
         assert self.shards, f"No latent shards in {directory}"
         self.lengths = [int(json.loads(self.metadata(shard)["windows"])) for shard in self.shards]
@@ -26,6 +27,28 @@ class CachedWindowDataset(Dataset):
         self.total = sum(self.lengths) if windows is None else min(windows, sum(self.lengths))
         self.handles: dict[int, object] = {}
         self.datasets = json.loads(self.metadata(self.shards[0])["datasets"])
+        if encoder is not None:
+            self.check_encoder(directory, encoder)
+
+    def check_encoder(self, directory: Path, encoder: FrozenEncoderConfig) -> None:
+        for shard in self.shards:
+            recorded = self.metadata(shard).get("encoder")
+            if recorded is None:
+                assert "pe_av" not in (encoder.video_encoder, encoder.audio_encoder), (
+                    f"{shard} predates encoder fingerprints, so it cannot hold PE-AV latents; "
+                    f"config uses {encoder.video_encoder} + {encoder.audio_encoder}"
+                )
+            else:
+                assert recorded == encoder.latent_info, (
+                    f"{shard} was cached with encoder {recorded}, config uses {encoder.latent_info}"
+                )
+        with safe_open(str(self.shards[0]), "pt") as handle:
+            video_shape = handle.get_slice("video").get_shape()[-2:]
+            audio_width = handle.get_slice("audio").get_shape()[-1]
+        expected = ([(encoder.image_size // 16) ** 2, encoder.video_latent_dimension], encoder.audio_latent_dimension)
+        assert (video_shape, audio_width) == expected, (
+            f"{directory} latents are (video {video_shape}, audio {audio_width}), config expects {expected}"
+        )
 
     def metadata(self, shard: Path) -> dict[str, str]:
         with safe_open(str(shard), "pt") as handle:
@@ -62,7 +85,7 @@ def write_shards(
 ) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     names = sorted(set(dataset.datasets.tolist()))
-    metadata = {"datasets": json.dumps(names)}
+    metadata = {"datasets": json.dumps(names), "encoder": encoder.settings.latent_info}
     for shard_start in range(start, min(start + count, len(dataset)), shard_windows):
         path = directory / f"shard_{shard_start:08d}.safetensors"
         if path.exists():
