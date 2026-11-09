@@ -16,7 +16,9 @@ class SourceConfig(FrozenModel):
 
 class DatasetConfig(FrozenModel):
     sources: dict[str, SourceConfig] = Field(default_factory=dict)
+    # mainly for debugging but I guess we could make a huge synth dataset
     synthetic: bool = False
+    # better to do Path type here???
     latent_cache: str
     windows: PositiveInt
     validation_windows: NonNegativeInt = 0
@@ -24,6 +26,7 @@ class DatasetConfig(FrozenModel):
     mirror_probability: float = Field(default=0.0, ge=0.0, le=1.0)
     recorded_actions: bool = False
     workers: NonNegativeInt = 8
+    # should this pass by cfg or just fail after like n=4 hardcoded?
     attempts: PositiveInt = 16
 
 

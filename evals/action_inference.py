@@ -63,13 +63,16 @@ def candidate_controls(
     steps = repeat(target, "candidate chunk control -> candidate (chunk step) control", step=chunk_steps)
     return torch.cat((repeat(context, "time control -> candidate time control", candidate=candidates), steps), dim=1)
 
-
+#TODO: ugly, refactor and ideally remove
 def chunk_summary(controls: Tensor, buttons: Tensor, layout: ControlLayout, chunk_steps: int) -> tuple[Tensor, Tensor]:
     chunked = rearrange(controls, "(chunk step) control -> chunk step control", step=chunk_steps)
     button_count = layout.keyboard_count + len(layout.mouse_buttons)
     return chunked[:, :, buttons].mean(dim=1) > 0.5, chunked[:, :, button_count : button_count + 2].sum(dim=1)
 
 
+
+
+#CEMis good enough for now
 @torch.no_grad()
 def search(
     objective: WorldModelObjective,

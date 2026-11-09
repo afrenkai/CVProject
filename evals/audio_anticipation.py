@@ -38,6 +38,7 @@ def window_scores(objective: WorldModelObjective, batch: dict[str, Tensor], onse
 
 def stratified(benefit: Tensor, score: Tensor) -> dict[str, float]:
     order = score.argsort()
+    #assuming .numel works like np impl, no clue actually
     quarter = max(1, order.numel() // 4)
     ranks = torch.empty_like(score)
     ranks[order] = torch.arange(score.numel(), dtype=score.dtype)

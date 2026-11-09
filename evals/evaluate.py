@@ -19,6 +19,8 @@ def flow_losses(
     workers: int,
     device: torch.device,
 ) -> dict[str, float]:
+    #TODO: still don'y like this ugly string mangling since we pass obj as dict keys
+    # not sure how to fix best but when have time will fix surely...
     parts = ("video_flow_loss", "audio_flow_loss")
     totals = {f"{label}/{name}/{part}": 0.0 for label in objectives for part in parts}
     batches = 0

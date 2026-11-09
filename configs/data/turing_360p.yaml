@@ -8,6 +8,10 @@ data:
     kinetics400:
       root: /archive/afrenk/media_360p/kinetics400
     sphere360:
+      # due to bug with a couple files having av1 encoding. 
+      # used libdav1d to convert to .mkv since ffmpeg on cluster didn't
+      # have it shipped. 
+      # pyav has it shipped though
       root: /archive/afrenk/media_360p/sphere360
       video: ${.root}/video/{key}.mkv
     d2e:

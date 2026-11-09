@@ -12,7 +12,20 @@ from training.objective import WorldModelObjective, checkpoint_weights, restore_
 from training.training_types import PretrainConfig
 
 
+
 def action_variants(batch: dict[str, Tensor]) -> dict[str, dict[str, Tensor]]:
+    """
+    in minibatch of actions
+    we want to make sure that several ablations can be done.
+
+    roll flips tensor along the 1st dim.
+
+    Example:
+        (assuming )
+    reg_batch_arange = tensor([[1, 2], [3, 4], [5, 6], [7, 8]])
+    reg_batch_rolled = tensor([[8,1], [2,3], [4,5], [6,7]])
+
+    """
     shuffled = torch.roll(torch.arange(batch["actions"].shape[0], device=batch["actions"].device), 1)
     return {
         "true": batch,
@@ -126,6 +139,7 @@ def main(
                 torch.tensor(summary[f"{name}/{modality}_crps"]) / true_crps - 1.0
             ).tolist()
 
+    #TODO: handle logging smarter
     summary["retrieval/chance_top1"] = 1.0 / candidates
     output = checkpoint / "action_eval.json"
     output.write_text(json.dumps(summary, indent=2))
@@ -145,14 +159,14 @@ if __name__ == "__main__":
     parser.add_argument("--members", type=int, default=4)
     parser.add_argument("--candidates", type=int, default=8)
     parser.add_argument("--integration-steps", type=int, default=8)
-    command = parser.parse_args()
+    args = parser.parse_args()
     main(
-        command.run,
-        command.checkpoint,
-        command.cache,
-        command.windows,
-        command.batch_size,
-        command.members,
-        command.candidates,
-        command.integration_steps,
+        args.run,
+        args.checkpoint,
+        args.cache,
+        args.windows,
+        args.batch_size,
+        args.members,
+        args.candidates,
+        args.integration_steps,
     )
