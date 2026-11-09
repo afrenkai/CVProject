@@ -7,7 +7,7 @@ from data.control_types import (
     RecordedEvent,
     ScreenPayload,
 )
-from data.data_types import ActionWindowConfig
+from data.data_types import ActionClipConfig
 
 
 def add_screen_reference(messages: CaptureMessages, source: Path, screen: ScreenPayload, log_time: int) -> None:
@@ -35,7 +35,7 @@ def add_control_event(messages: CaptureMessages, topic: str, payload: ActionPayl
     messages.events.append(RecordedEvent(log_time, topic, payload))
 
 
-def finish_capture(messages: CaptureMessages, settings: ActionWindowConfig) -> ControlCapture:
+def finish_capture(messages: CaptureMessages, settings: ActionClipConfig) -> ControlCapture:
     assert len(messages.screen_times_ns) >= 3 and len(messages.origins) == 1
     assert set(messages.state_times) == {"keyboard/state", "mouse/state"}
     assert messages.raw_origins
@@ -58,7 +58,7 @@ def finish_capture(messages: CaptureMessages, settings: ActionWindowConfig) -> C
 
 
 def read_recorded_capture(
-    source: Path, settings: ActionWindowConfig, stop_seconds: float, start_seconds: float = 0.0
+    source: Path, settings: ActionClipConfig, stop_seconds: float, start_seconds: float = 0.0
 ) -> ControlCapture:
     messages = CaptureMessages()
     topics = ["screen", "keyboard", "keyboard/state", "mouse", "mouse/state", "mouse/raw"]

@@ -60,10 +60,10 @@ class JointEncoder(nn.Module):
     def audio_channels(self, waveform: Tensor) -> Tensor:
         config = self.settings
         history = config.audio_history_samples
-        window = waveform[..., history:]
-        assert window.shape[-1] % config.step_samples == 0
+        clip = waveform[..., history:]
+        assert clip.shape[-1] % config.step_samples == 0
         context_tokens = config.context_frames // config.video_frames_per_step * config.audio_tokens_per_step
-        target_tokens = window.shape[-1] // config.step_samples * config.audio_tokens_per_step - context_tokens
+        target_tokens = clip.shape[-1] // config.step_samples * config.audio_tokens_per_step - context_tokens
         observed = self.audio_encoder(self.semantic_waveform(waveform[:, :2, : history + config.context_samples]))
         complete = self.audio_encoder(self.semantic_waveform(waveform[:, :2])).float()
         semantic = torch.cat(
@@ -83,7 +83,7 @@ class JointEncoder(nn.Module):
         missing = config.waveform_channels - waveform.shape[1]
         spatial = self.spatial_features(
             torch.cat(
-                (window.float(), window.new_zeros(window.shape[0], missing, window.shape[-1]).float()),
+                (clip.float(), clip.new_zeros(clip.shape[0], missing, clip.shape[-1]).float()),
                 dim=1,
             )
         )
@@ -144,7 +144,8 @@ class JointEncoder(nn.Module):
         assert video.shape[:2] == audio.shape[:2]
         return video, audio
 
-#TODO: write custom thing for audio encoder instead
+
+# TODO: write custom thing for audio encoder instead
 def build_encoder_config(config: EncoderConfig, bfloat16: bool) -> FrozenEncoderConfig:
     audio_path = Path(snapshot_download(config.audio_model))
     match config.audio_encoder:

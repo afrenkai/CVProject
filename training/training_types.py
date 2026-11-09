@@ -44,14 +44,12 @@ class TrainerConfig(FrozenModel):
     device: Literal["cuda", "cpu"] = "cuda"
     activation_checkpointing: bool = False
     ema_decay: float = Field(default=0.999, ge=0.0, lt=1.0)
-    normalizer_windows: PositiveInt = 1024
+    normalizer_clips: PositiveInt = 1024
     log_every: PositiveInt = 25
     eval_steps: PositiveInt = 500
     checkpoint_steps: PositiveInt = 250
     checkpoint_limit: PositiveInt = 2
     max_steps: NonNegativeInt = 0
-    stop_at: NonNegativeFloat = 0.0
-    stop_file: str | None = None
     initialize_from: str | None = None
     wandb_project: str = "speakup-stage1"
     wandb_mode: Literal["online", "offline", "disabled"] = "offline"

@@ -3,13 +3,14 @@ import os
 from pathlib import Path
 import torch
 import torch.distributed as dist
+from omegaconf import OmegaConf
 from torch.optim.swa_utils import AveragedModel
 from torch.utils.data import DataLoader, Dataset, Subset
 from transformers import TrainingArguments, get_cosine_with_min_lr_schedule_with_warmup
 from transformers.trainer_utils import get_last_checkpoint
 from configs.loading import load_run_settings
 from data.control_types import ControlLayout
-from data.latent_cache import CachedWindowDataset
+from data.latent_cache import CachedClipDataset
 from models.encoder_types import FrozenEncoderConfig
 from models.joint_encoder import build_encoder_config
 from models.normalization import AudioVisualNormalizer, RunningMoments
@@ -19,7 +20,6 @@ from training.optimization import build_optimizer, warmup_ema_update
 from training.trainer import (
     EmaCallback,
     SlimLsdCallback,
-    StopCallback,
     WorldModelTrainer,
 )
 from training.training_types import PretrainConfig
@@ -56,7 +56,7 @@ def training_arguments(config: PretrainConfig) -> TrainingArguments:
         use_cpu=trainer_config.device == "cpu",
         logging_steps=trainer_config.log_every,
         save_strategy="steps",
-        eval_strategy="steps" if data_config.validation_windows else "no",
+        eval_strategy="steps" if data_config.validation_clips else "no",
         eval_steps=trainer_config.eval_steps,
         per_device_eval_batch_size=trainer_config.batch_size,
         save_steps=trainer_config.checkpoint_steps,
@@ -75,13 +75,13 @@ def training_arguments(config: PretrainConfig) -> TrainingArguments:
 def load_datasets(config: PretrainConfig, rank: int) -> tuple[Dataset, dict[str, Dataset] | None]:
     data_config = config.data
     cache = Path(data_config.latent_cache)
-    dataset = CachedWindowDataset(cache / "train", data_config.windows)
+    dataset = CachedClipDataset(cache / "train", data_config.clips)
     if rank == 0:
-        print(f"Training on {len(dataset)} cached windows from {cache}", flush=True)
-    if not data_config.validation_windows:
+        print(f"Training on {len(dataset)} cached clips from {cache}", flush=True)
+    if not data_config.validation_clips:
         return dataset, None
     return dataset, {
-        directory.name: CachedWindowDataset(directory, data_config.validation_windows)
+        directory.name: CachedClipDataset(directory, data_config.validation_clips)
         for directory in sorted((cache / "validation").iterdir())
     }
 
@@ -105,7 +105,7 @@ def load_normalizer(
         )
     rank, world = arguments.process_index, arguments.world_size
     normalizer = fit_normalizer(
-        Subset(dataset, range(rank, config.trainer.normalizer_windows, world)),
+        Subset(dataset, range(rank, config.trainer.normalizer_clips, world)),
         config.trainer.batch_size,
         config.data.workers,
         arguments.device,
@@ -125,21 +125,21 @@ def warm_up(
     device, batch_size = arguments.device, config.trainer.batch_size
     time_steps = config.encoder.total_frames // encoder_config.video_frames_per_step
     patches = (encoder_config.image_size // 16) ** 2
-    windows = (
+    clips = (
         torch.randn(batch_size, time_steps, patches, encoder_config.video_latent_dimension, device=device),
         torch.randn(batch_size, time_steps, encoder_config.audio_latent_dimension, device=device),
         torch.zeros(batch_size, time_steps, ControlLayout().dimension, device=device),
         torch.zeros(batch_size, dtype=torch.int64, device=device),
     )
     with torch.autocast(device.type, dtype=torch.bfloat16, enabled=arguments.bf16):
-        objective(*windows)["loss"].backward()
+        objective(*clips)["loss"].backward()
     for parameter in objective.parameters():
         if parameter.requires_grad and parameter.grad is None:
             parameter.requires_grad_(False)
         parameter.grad = None
     for rows in sorted({batch_size, min(4, batch_size)}) if config.trainer.compile else ():
         with torch.no_grad(), torch.autocast(device.type, dtype=torch.bfloat16, enabled=arguments.bf16):
-            objective(*(tensor[:rows] for tensor in windows))
+            objective(*(tensor[:rows] for tensor in clips))
 
 
 def main(config: PretrainConfig) -> None:
@@ -154,7 +154,7 @@ def main(config: PretrainConfig) -> None:
     output = Path(trainer_config.output)
     output.mkdir(parents=True, exist_ok=True)
     if rank == 0:
-        (output / "pretrain_config.json").write_text(config.model_dump_json(indent=2))
+        OmegaConf.save(OmegaConf.create(config.model_dump(mode="json")), output / "config.yaml")
     resume = get_last_checkpoint(str(output))
 
     encoder_config = build_encoder_config(config.encoder, bfloat16=trainer_config.precision == "bf16")
@@ -181,7 +181,7 @@ def main(config: PretrainConfig) -> None:
     warm_up(objective, config, encoder_config, arguments)
 
     batch_size = trainer_config.batch_size
-    steps_per_epoch = (config.data.windows // world) // (batch_size * trainer_config.gradient_accumulation)
+    steps_per_epoch = (config.data.clips // world) // (batch_size * trainer_config.gradient_accumulation)
     total_steps = max(
         trainer_config.max_steps or steps_per_epoch * trainer_config.epochs, optimizer_config.warmup_steps + 1
     )
@@ -204,7 +204,6 @@ def main(config: PretrainConfig) -> None:
         averaged.load_state_dict(torch.load(Path(resume) / "ema.pt", map_location="cpu", weights_only=False))
     callbacks = [
         EmaCallback(averaged, objective),
-        StopCallback(trainer_config.stop_at, Path(trainer_config.stop_file) if trainer_config.stop_file else None),
     ]
     if config.objective.slim_lsd.weight > 0:
         callbacks.append(SlimLsdCallback(objective))
@@ -231,5 +230,5 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("config", type=Path)
     parser.add_argument("overrides", nargs="*")
-    command = parser.parse_args()
-    main(PretrainConfig.model_validate(load_run_settings(command.config, command.overrides)))
+    args = parser.parse_args()
+    main(PretrainConfig.model_validate(load_run_settings(args.config, args.overrides)))

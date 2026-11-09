@@ -13,6 +13,29 @@ class ControlLayout(BaseModel):
     def dimension(self) -> int:
         return self.keyboard_count + len(self.mouse_buttons) + len(self.axis_names)
 
+# got this from loading parquet and seeing what everything maps to
+class Opencs2InputMap(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    keys: dict[str, tuple[int, ...]] = {
+        "attack": (1,),
+        "attack2": (2,),
+        "back": (83,),
+        "duck": (17, 162),
+        "forward": (87,),
+        "jump": (32,),
+        "look_at_weapon": (70,),
+        "move_left": (65,),
+        "move_right": (68,),
+        "reload": (82,),
+        "score": (9,),
+        "speed": (16, 160),
+        "use": (69,),
+    }
+    buttons: dict[str, str] = {"attack": "left", "attack2": "right"}
+    degrees_per_count: PositiveFloat = 0.022
+    minimum_ticks_per_block: PositiveInt = 4
+
 
 class ControlEncoderConfig(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)

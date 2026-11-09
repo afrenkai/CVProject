@@ -1,11 +1,11 @@
 import argparse
-import json
 from pathlib import Path
 import torch
 from einops import rearrange, repeat
 from torch import Tensor
+from configs.loading import load_run_settings
 from data.control_types import ControlLayout
-from data.latent_cache import CachedWindowDataset
+from data.latent_cache import CachedClipDataset
 from evals.eval_types import ActionSearchConfig, CostModality
 from models.joint_encoder import build_encoder_config
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
@@ -64,16 +64,18 @@ def candidate_controls(
     return torch.cat((repeat(context, "time control -> candidate time control", candidate=candidates), steps), dim=1)
 
 
+# TODO: ugly, refactor and ideally remove
 def chunk_summary(controls: Tensor, buttons: Tensor, layout: ControlLayout, chunk_steps: int) -> tuple[Tensor, Tensor]:
     chunked = rearrange(controls, "(chunk step) control -> chunk step control", step=chunk_steps)
     button_count = layout.keyboard_count + len(layout.mouse_buttons)
     return chunked[:, :, buttons].mean(dim=1) > 0.5, chunked[:, :, button_count : button_count + 2].sum(dim=1)
 
 
+# CEMis good enough for now
 @torch.no_grad()
 def search(
     objective: WorldModelObjective,
-    window: dict[str, Tensor],
+    clip: dict[str, Tensor],
     buttons: Tensor,
     prior: Tensor,
     settings: ActionSearchConfig,
@@ -81,7 +83,7 @@ def search(
     generator: torch.Generator,
 ) -> dict[str, Tensor]:
     layout = ControlLayout()
-    video, audio, actions = window["video"][None], window["audio"][None], window["actions"]
+    video, audio, actions = clip["video"][None], clip["audio"][None], clip["actions"]
     context_steps = objective.context_steps
     chunks = (actions.shape[0] - context_steps) // settings.chunk_steps
     normalized_video = objective.normalizer.normalize_video(video)
@@ -180,45 +182,42 @@ def control_scores(
 
 @torch.no_grad()
 def main(run: Path, checkpoint: Path, cache: Path, settings: ActionSearchConfig) -> None:
-    config = PretrainConfig.model_validate_json((run / "pretrain_config.json").read_text())
+    config = PretrainConfig.model_validate(load_run_settings(run / "config.yaml", []))
     device = torch.device("cuda")
     bfloat16 = config.trainer.precision == "bf16"
     encoder_config = build_encoder_config(config.encoder, bfloat16=bfloat16)
     objective = restore_objective(config, encoder_config, checkpoint_weights(checkpoint, True), device)
-    dataset = CachedWindowDataset(cache)
-    windows = [dataset[index] for index in range(len(dataset))]
+    dataset = CachedClipDataset(cache)
+    clips = [dataset[index] for index in range(len(dataset))]
     steps = config.encoder.total_frames // encoder_config.video_frames_per_step
-    windows = [
-        {name: tensor[-steps:] if tensor.dim() else tensor for name, tensor in window.items()}
-        for window in windows
-        if int(window["action_present"]) == 1
-    ][: settings.windows]
+    clips = [
+        {name: tensor[-steps:] if tensor.dim() else tensor for name, tensor in clip.items()}
+        for clip in clips
+        if int(clip["action_present"]) == 1
+    ][: settings.clips]
     layout = ControlLayout()
     button_count = layout.keyboard_count + len(layout.mouse_buttons)
-    pressed = torch.stack([window["actions"][:, :button_count] for window in windows]).mean(dim=(0, 1))
+    pressed = torch.stack([clip["actions"][:, :button_count] for clip in clips]).mean(dim=(0, 1))
     buttons = torch.nonzero(pressed > settings.minimum_press_rate).flatten().to(device)
     prior = pressed[buttons.cpu()].to(device)
     video_only = config.objective.mode == "video_only"
     modalities: tuple[CostModality, ...] = ("video",) if video_only else ("video", "audio_video")
-    summary: dict[str, float] = {"windows": float(len(windows)), "buttons": float(buttons.numel())}
+    summary: dict[str, float] = {"clips": float(len(clips)), "buttons": float(buttons.numel())}
     for modality in modalities:
         generator = torch.Generator(device=device).manual_seed(settings.seed)
         results = []
-        for index, window in enumerate(windows):
-            window = {name: tensor.to(device).float() for name, tensor in window.items()}
+        for index, clip in enumerate(clips):
+            clip = {name: tensor.to(device).float() for name, tensor in clip.items()}
             if video_only:
-                window["audio"] = torch.zeros_like(window["audio"])
+                clip["audio"] = torch.zeros_like(clip["audio"])
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=bfloat16):
-                results.append(search(objective, window, buttons, prior, settings, modality, generator))
+                results.append(search(objective, clip, buttons, prior, settings, modality, generator))
             if index % 16 == 0:
-                print(f"{modality} window {index}/{len(windows)}", flush=True)
+                print(f"{modality} clip {index}/{len(clips)}", flush=True)
         scores = control_scores(results, buttons, settings.chunk_steps, settings.minimum_motion)
         summary.update({f"{modality}/{name}": value for name, value in scores.items()})
-    output = checkpoint / "action_inference.json"
-    output.write_text(json.dumps(summary, indent=2))
     for name, value in summary.items():
         print(f"{name}: {value:.4f}", flush=True)
-    print(f"saved {output}", flush=True)
 
 
 if __name__ == "__main__":
@@ -227,6 +226,6 @@ if __name__ == "__main__":
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("cache", type=Path)
     parser.add_argument("overrides", nargs="*")
-    command = parser.parse_args()
-    settings = ActionSearchConfig.model_validate(dict(override.split("=", 1) for override in command.overrides))
-    main(command.run, command.checkpoint, command.cache, settings)
+    args = parser.parse_args()
+    settings = ActionSearchConfig.model_validate(dict(override.split("=", 1) for override in args.overrides))
+    main(args.run, args.checkpoint, args.cache, settings)

@@ -1,5 +1,4 @@
 import argparse
-import json
 from bisect import bisect_right
 from pathlib import Path
 import torch
@@ -8,33 +7,37 @@ from safetensors.torch import save_file
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Subset
 from configs.loading import load_run_settings
+from data.clips import AVDataset, build_dataset, build_evaluation_datasets
 from data.control_types import ControlLayout
-from data.windows import PoolWindowDataset, build_dataset, build_evaluation_datasets
 from models.joint_encoder import JointEncoder, build_encoder_config
 from training.training_types import PretrainConfig
 
 
-class CachedWindowDataset(Dataset):
-    def __init__(self, directory: Path, windows: int | None = None) -> None:
+class CachedClipDataset(Dataset):
+    def __init__(self, directory: Path, clips: int | None = None) -> None:
         self.shards = sorted(directory.glob("shard_*.safetensors"))
         assert self.shards, f"No latent shards in {directory}"
-        self.lengths = [int(json.loads(self.metadata(shard)["windows"])) for shard in self.shards]
+        self.lengths = [self.rows(shard) for shard in self.shards]
         self.starts = [sum(self.lengths[:index]) for index in range(len(self.lengths))]
         assert [
             int(shard.stem.removeprefix("shard_")) for shard in self.shards
-        ] == self.starts, f"Latent shards in {directory} are not contiguous"
-        self.total = sum(self.lengths) if windows is None else min(windows, sum(self.lengths))
-        self.handles: dict[int, object] = {}
-        self.datasets = json.loads(self.metadata(self.shards[0])["datasets"])
+        ] == self.starts, f"Latent shards in {directory} are not (C) contiguous"
+        self.total = sum(self.lengths) if clips is None else min(clips, sum(self.lengths))
+        self.handles: dict[int, safe_open] = {}
 
-    def metadata(self, shard: Path) -> dict[str, str]:
+    def rows(self, shard: Path) -> int:
         with safe_open(str(shard), "pt") as handle:
-            return handle.metadata()
+            return handle.get_slice("video").get_shape()[0]
 
     def __len__(self) -> int:
         return self.total
 
     def __getitem__(self, index: int) -> dict[str, Tensor]:
+        """
+        lookup using bisect is O(log n)
+        regardless, this is still a "grid" of shardsxidx which we open via safetensors' safe open
+
+        """
         shard = bisect_right(self.starts, index) - 1
         row = index - self.starts[shard]
         if shard not in self.handles:
@@ -50,24 +53,22 @@ class CachedWindowDataset(Dataset):
 
 @torch.no_grad()
 def write_shards(
-    dataset: PoolWindowDataset,
+    dataset: AVDataset,
     encoder: JointEncoder,
     directory: Path,
     start: int,
     count: int,
-    shard_windows: int,
+    shard_clips: int,
     batch_size: int,
     workers: int,
     device: torch.device,
 ) -> None:
     directory.mkdir(parents=True, exist_ok=True)
-    names = sorted(set(dataset.datasets.tolist()))
-    metadata = {"datasets": json.dumps(names)}
-    for shard_start in range(start, min(start + count, len(dataset)), shard_windows):
+    for shard_start in range(start, min(start + count, len(dataset)), shard_clips):
         path = directory / f"shard_{shard_start:08d}.safetensors"
         if path.exists():
             continue
-        indices = range(shard_start, min(shard_start + shard_windows, start + count, len(dataset)))
+        indices = range(shard_start, min(shard_start + shard_clips, start + count, len(dataset)))
         parts: dict[str, list[Tensor]] = {"video": [], "audio": [], "actions": [], "action_present": []}
         for batch in DataLoader(Subset(dataset, indices), batch_size=batch_size, num_workers=workers):
             video, audio = encoder.encode(batch["frames"].to(device), batch["waveform"].to(device))
@@ -79,10 +80,9 @@ def write_shards(
         save_file(
             {name: torch.cat(values).contiguous() for name, values in parts.items()},
             str(partial),
-            metadata={**metadata, "windows": json.dumps(len(indices))},
         )
         partial.rename(path)
-        print(f"wrote {path} ({len(indices)} windows)", flush=True)
+        print(f"wrote {path} ({len(indices)} clips)", flush=True)
 
 
 def main(
@@ -98,7 +98,7 @@ def main(
     encoder = JointEncoder(encoder_config, device).eval()
     output = Path(config.data.latent_cache)
     layout = ControlLayout()
-    settings = {"shard_windows": 1024, "batch_size": 32, "workers": config.data.workers, "device": device}
+    settings = {"shard_clips": 1024, "batch_size": 32, "workers": config.data.workers, "device": device}
     if split == "train":
         dataset = build_dataset(config.data, encoder_config, config.encoder.total_frames, layout)
         write_shards(
@@ -130,11 +130,11 @@ if __name__ == "__main__":
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--count", type=int, default=1 << 40)
     parser.add_argument("overrides", nargs="*")
-    command = parser.parse_args()
+    args = parser.parse_args()
     main(
-        command.config,
-        command.split,
-        command.start,
-        command.count,
-        command.overrides,
+        args.config,
+        args.split,
+        args.start,
+        args.count,
+        args.overrides,
     )

@@ -1,11 +1,11 @@
 import argparse
-import json
 from pathlib import Path
 import torch
 from einops import rearrange, repeat
 from torch import Tensor
 from torch.utils.data import DataLoader
-from data.latent_cache import CachedWindowDataset
+from configs.loading import load_run_settings
+from data.latent_cache import CachedClipDataset
 from evals.samples import ensemble_crps, rollout
 from models.joint_encoder import build_encoder_config
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
@@ -13,20 +13,18 @@ from training.training_types import PretrainConfig
 
 
 @torch.no_grad()
-def window_crps(
+def clip_crps(
     objective: WorldModelObjective, batch: dict[str, Tensor], members: int, integration_steps: int, seed: int
 ) -> Tensor:
-    windows = batch["video"].shape[0]
-    repeated = {
-        name: repeat(tensor, "window ... -> (member window) ...", member=members) for name, tensor in batch.items()
-    }
+    clips = batch["video"].shape[0]
+    repeated = {name: repeat(tensor, "clip ... -> (member clip) ...", member=members) for name, tensor in batch.items()}
     result = rollout(objective, repeated, integration_steps, seed)
-    predicted = rearrange(result["predicted_video"].float(), "(member window) ... -> member window ...", member=members)
-    target = result["true_video"][:windows].float()
+    predicted = rearrange(result["predicted_video"].float(), "(member clip) ... -> member clip ...", member=members)
+    target = result["true_video"][:clips].float()
     return ensemble_crps(predicted, target).mean(dim=(1, 2, 3))
 
 
-def window_scores(objective: WorldModelObjective, batch: dict[str, Tensor], onset_steps: int) -> dict[str, Tensor]:
+def clip_scores(objective: WorldModelObjective, batch: dict[str, Tensor], onset_steps: int) -> dict[str, Tensor]:
     context_steps = objective.context_steps
     audio = objective.normalizer.normalize_audio(batch["audio"].float())
     video = objective.normalizer.normalize_video(batch["video"].float())
@@ -38,6 +36,7 @@ def window_scores(objective: WorldModelObjective, batch: dict[str, Tensor], onse
 
 def stratified(benefit: Tensor, score: Tensor) -> dict[str, float]:
     order = score.argsort()
+    # assuming .numel works like np impl, no clue actually
     quarter = max(1, order.numel() // 4)
     ranks = torch.empty_like(score)
     ranks[order] = torch.arange(score.numel(), dtype=score.dtype)
@@ -61,20 +60,20 @@ def main(
     integration_steps: int,
     onset_steps: int,
 ) -> None:
-    config = PretrainConfig.model_validate_json((run / "pretrain_config.json").read_text())
+    config = PretrainConfig.model_validate(load_run_settings(run / "config.yaml", []))
     device = torch.device("cuda")
     bfloat16 = config.trainer.precision == "bf16"
     encoder_config = build_encoder_config(config.encoder, bfloat16=bfloat16)
     objective = restore_objective(config, encoder_config, checkpoint_weights(checkpoint, True), device)
     twin_objective = None
     if twin is not None:
-        twin_config = PretrainConfig.model_validate_json((twin / "pretrain_config.json").read_text())
+        twin_config = PretrainConfig.model_validate(load_run_settings(twin / "config.yaml", []))
         twin_objective = restore_objective(
             twin_config, encoder_config, checkpoint_weights(twin / checkpoint.name, True), device
         )
     steps = config.encoder.total_frames // encoder_config.video_frames_per_step
     collected: dict[str, list[Tensor]] = {}
-    for index, batch in enumerate(DataLoader(CachedWindowDataset(cache), batch_size=batch_size, drop_last=True)):
+    for index, batch in enumerate(DataLoader(CachedClipDataset(cache), batch_size=batch_size, drop_last=True)):
         batch = {
             name: tensor.to(device)[:, -steps:].float() if tensor.dim() > 1 else tensor.to(device)
             for name, tensor in batch.items()
@@ -86,20 +85,20 @@ def main(
         }
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=bfloat16):
             crps = {
-                name: window_crps(objective, variant, members, integration_steps, index)
+                name: clip_crps(objective, variant, members, integration_steps, index)
                 for name, variant in variants.items()
             }
             if twin_objective is not None:
                 silent = {**batch, "audio": torch.zeros_like(batch["audio"])}
-                crps["twin"] = window_crps(twin_objective, silent, members, integration_steps, index)
+                crps["twin"] = clip_crps(twin_objective, silent, members, integration_steps, index)
         values = {
             **{f"crps_{name}": value for name, value in crps.items()},
-            **window_scores(objective, batch, onset_steps),
+            **clip_scores(objective, batch, onset_steps),
         }
         for name, value in values.items():
             collected.setdefault(name, []).append(value.float().cpu())
     tensors = {name: torch.cat(values) for name, values in collected.items()}
-    summary: dict[str, object] = {"windows": tensors["crps_true"].numel()}
+    summary: dict[str, object] = {"clips": tensors["crps_true"].numel()}
     benefits = {"shuffle": tensors["crps_audio_shuffled"] - tensors["crps_true"]}
     if "crps_twin" in tensors:
         benefits["twin"] = tensors["crps_twin"] - tensors["crps_true"]
@@ -108,10 +107,8 @@ def main(
         summary[f"{name}/relative_benefit"] = (benefit / tensors["crps_true"]).mean().item()
         summary[f"{name}/by_onset"] = stratified(benefit, tensors["onset"])
         summary[f"{name}/by_surprise"] = stratified(benefit, tensors["surprise"])
-    output = checkpoint / f"audio_anticipation_{cache.parent.parent.name}.json"
-    output.write_text(json.dumps(summary, indent=2))
-    print(json.dumps(summary, indent=2), flush=True)
-    print(f"saved {output}", flush=True)
+    for name, value in summary.items():
+        print(f"{name}: {value}", flush=True)
 
 
 if __name__ == "__main__":
@@ -124,14 +121,14 @@ if __name__ == "__main__":
     parser.add_argument("--members", type=int, default=4)
     parser.add_argument("--integration-steps", type=int, default=8)
     parser.add_argument("--onset-steps", type=int, default=10)
-    command = parser.parse_args()
+    args = parser.parse_args()
     main(
-        command.run,
-        command.checkpoint,
-        command.cache,
-        command.twin,
-        command.batch_size,
-        command.members,
-        command.integration_steps,
-        command.onset_steps,
+        args.run,
+        args.checkpoint,
+        args.cache,
+        args.twin,
+        args.batch_size,
+        args.members,
+        args.integration_steps,
+        args.onset_steps,
     )

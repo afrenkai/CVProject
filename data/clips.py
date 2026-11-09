@@ -1,26 +1,43 @@
+import functools
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO
 import fsspec
 import numpy as np
+import pyarrow.parquet
 import torch
+from fsspec import AbstractFileSystem
 from torch import Tensor
 from torch.utils.data import Dataset
 from torchcodec.decoders import AudioDecoder, VideoDecoder
 from torchcodec.transforms import Resize
 from data.control_types import ControlLayout
-from data.data_types import ActionWindowConfig, DatasetConfig, SourceConfig
+from data.data_types import ActionClipConfig, DatasetConfig, SourceConfig
+from data.opencs2_controls import opencs2_controls, read_opencs2_ticks
 from data.recorded_capture import read_recorded_capture
-from data.recorded_controls import controls_for_window
+from data.recorded_controls import controls_for_clip
 from models.audio.spatial import ambisonic_microphones
 from models.encoder_types import FrozenEncoderConfig
 
 
 @dataclass(frozen=True)
-class PoolRecord:
-    path: str
+class AVExample:
+    media_path: str
     dataset: str
     actions_path: str | None = None
     audio_path: str | None = None
+    ambisonic_path: str | None = None
+
+
+@functools.lru_cache(maxsize=64)
+def shard_filesystem(shard: str) -> AbstractFileSystem:
+    protocol, path = fsspec.core.split_protocol(shard)
+    return fsspec.filesystem("tar", fo=path, target_protocol=protocol or "file")
+
+
+def open_member(url: str) -> BinaryIO:
+    member, shard = url.removeprefix("tar://").split("::", 1)
+    return shard_filesystem(shard).open(member, "rb")
 
 
 def has_split(source: SourceConfig, split: str) -> bool:
@@ -28,24 +45,42 @@ def has_split(source: SourceConfig, split: str) -> bool:
     return filesystem.exists(path)
 
 
-def source_records(name: str, source: SourceConfig, split: str) -> list[PoolRecord]:
+def shard_examples(name: str, source: SourceConfig, samples: str, keys: list[str]) -> list[AVExample]:
+    columns = ["media_id", "shard_path", "mp4_member", "ticks_member"]
+    with fsspec.open(samples, "rb") as handle:
+        table = pyarrow.parquet.read_table(handle, columns=columns).to_pandas().set_index("media_id")
+    return [
+        AVExample(
+            f"tar://{row.mp4_member}::{source.root}/{row.shard_path}",
+            name,
+            f"tar://{row.ticks_member}::{source.root}/{row.shard_path}",
+        )
+        for row in table.loc[keys].itertuples()
+    ]
+
+
+def source_examples(name: str, source: SourceConfig, split: str) -> list[AVExample]:
     with fsspec.open(source.splits.format(split=split), "rt") as handle:
         keys = handle.read().split()
+    if source.samples is not None:
+        return shard_examples(name, source, source.samples, keys)
+    assert source.media is not None, f"{name} needs either a media template or a samples index"
     return [
-        PoolRecord(
-            source.video.format(key=key),
+        AVExample(
+            source.media.format(key=key),
             name,
             None if source.actions is None else source.actions.format(key=key),
             None if source.audio is None else source.audio.format(key=key),
+            None if source.ambisonic is None else source.ambisonic.format(key=key),
         )
         for key in keys
     ]
 
 
-class PoolWindowDataset(Dataset):
+class AVDataset(Dataset):
     def __init__(
         self,
-        records: list[PoolRecord],
+        examples: list[AVExample],
         weights: dict[str, float] | None,
         config: DatasetConfig,
         encoder: FrozenEncoderConfig,
@@ -53,10 +88,11 @@ class PoolWindowDataset(Dataset):
         layout: ControlLayout,
     ) -> None:
         self.config = config
-        self.paths = np.array([record.path for record in records])
-        self.audio_paths = np.array([record.audio_path or "" for record in records])
-        self.action_paths = np.array([record.actions_path or "" for record in records])
-        self.datasets = np.array([record.dataset for record in records])
+        self.media_paths = np.array([example.media_path for example in examples])
+        self.audio_paths = np.array([example.audio_path or "" for example in examples])
+        self.ambisonic_paths = np.array([example.ambisonic_path or "" for example in examples])
+        self.action_paths = np.array([example.actions_path or "" for example in examples])
+        self.datasets = np.array([example.dataset for example in examples])
         weights = weights or {name: float((self.datasets == name).sum()) for name in np.unique(self.datasets)}
         present = [name for name in weights if (self.datasets == name).any()]
         self.groups = [np.flatnonzero(self.datasets == name) for name in present]
@@ -72,7 +108,7 @@ class PoolWindowDataset(Dataset):
         self.samples = round(self.duration * self.sample_rate)
         self.history_samples = encoder.audio_history_samples
         self.action_config = (
-            ActionWindowConfig(
+            ActionClipConfig(
                 context_frames=encoder.context_frames,
                 target_frames=total_frames - encoder.context_frames,
                 video_frames_per_step=encoder.video_frames_per_step,
@@ -84,20 +120,26 @@ class PoolWindowDataset(Dataset):
         )
 
     def __len__(self) -> int:
-        return self.config.windows
+        return self.config.clips
 
-    def video_decoder(self, record_index: int) -> VideoDecoder:
+    def media(self, example_index: int) -> str | BinaryIO:
+        path = str(self.media_paths[example_index])
+        return open_member(path) if "::" in path else path
+
+    def video_decoder(self, example_index: int) -> VideoDecoder:
         return VideoDecoder(
-            str(self.paths[record_index]),
+            self.media(example_index),
             seek_mode="approximate",
             transforms=[Resize((self.image_size, self.image_size))],
         )
 
-    def audio_decoder(self, record_index: int) -> AudioDecoder:
-        audio_path = str(self.audio_paths[record_index])
-        if audio_path and self.waveform_channels == 4:
-            return AudioDecoder(audio_path, sample_rate=self.sample_rate)
-        return AudioDecoder(str(self.paths[record_index]), sample_rate=self.sample_rate, num_channels=2)
+    def audio_decoder(self, example_index: int) -> AudioDecoder:
+        ambisonic_path = str(self.ambisonic_paths[example_index])
+        audio_path = str(self.audio_paths[example_index])
+        if ambisonic_path and self.waveform_channels == 4:
+            return AudioDecoder(ambisonic_path, sample_rate=self.sample_rate)
+        source = audio_path or self.media(example_index)
+        return AudioDecoder(source, sample_rate=self.sample_rate, num_channels=2)
 
     def waveform_layout(self, waveform: Tensor) -> Tensor:
         if waveform.shape[0] == 4:
@@ -105,10 +147,10 @@ class PoolWindowDataset(Dataset):
         assert waveform.shape[0] == 2
         return torch.cat((waveform, waveform.new_zeros(self.waveform_channels - 2, waveform.shape[-1])))
 
-    def read_window(self, record_index: int, generator: torch.Generator) -> tuple[Tensor, Tensor, float] | None:
+    def read_clip(self, example_index: int, generator: torch.Generator) -> tuple[Tensor, Tensor, float] | None:
         try:
-            video = self.video_decoder(record_index)
-            audio = self.audio_decoder(record_index)
+            video = self.video_decoder(example_index)
+            audio = self.audio_decoder(example_index)
             available = min(
                 float(video.metadata.duration_seconds or 0.0), float(audio.metadata.duration_seconds or 0.0)
             )
@@ -136,34 +178,40 @@ class PoolWindowDataset(Dataset):
             history = torch.zeros(channels, 0)
         return torch.nn.functional.pad(history, (self.history_samples - history.shape[-1], 0))
 
-    def recorded_actions(self, record_index: int, start: float) -> Tensor | None:
+    def recorded_actions(self, example_index: int, start: float) -> Tensor | None:
         assert self.action_config is not None
+        actions_path = str(self.action_paths[example_index])
         try:
+            # TODO: def not gonna fly lol but for now only cs2 has a .parquet
+            if actions_path.split("::")[0].endswith(".parquet"):
+                ticks = read_opencs2_ticks(open_member(actions_path))
+                return opencs2_controls(ticks, start, self.action_config, self.action_config.opencs2_inputs)
             capture = read_recorded_capture(
-                Path(str(self.paths[record_index])),
+                Path(str(self.media_paths[example_index])),
                 self.action_config,
                 stop_seconds=start + self.duration + 0.5,
                 start_seconds=max(0.0, start - self.action_config.control_state_lookback_seconds),
             )
-            return controls_for_window(capture, start, self.action_config)
+            return controls_for_clip(capture, start, self.action_config)
         except (AssertionError, OSError, ValueError):
             return None
 
     def __getitem__(self, index: int) -> dict[str, Tensor]:
-        generator = torch.Generator().manual_seed(self.config.seed * 1_000_003 + index)
+        generator = torch.Generator().manual_seed(self.config.seed * 1_000_067 + index)
         for attempt in range(self.config.attempts):
             group = self.groups[int(torch.multinomial(self.group_weights, 1, generator=generator))]
-            record_index = group[int(torch.randint(len(group), (1,), generator=generator))]
-            window = self.read_window(record_index, generator)
-            if window is None:
+            example_index = group[int(torch.randint(len(group), (1,), generator=generator))]
+            clip = self.read_clip(example_index, generator)
+            if clip is None:
                 continue
-            frames, waveform, start = window
+            frames, waveform, start = clip
             actions = None
-            if self.action_config is not None and self.action_paths[record_index]:
-                actions = self.recorded_actions(record_index, start)
+            if self.action_config is not None and self.action_paths[example_index]:
+                actions = self.recorded_actions(example_index, start)
                 if actions is None:
                     continue
             if actions is None and float(torch.rand(1, generator=generator)) < self.config.mirror_probability:
+                # thank god flip works along -dims
                 frames = frames.flip(-1)
                 waveform = waveform[[1, 0, *range(2, waveform.shape[0])]]
             return {
@@ -172,11 +220,12 @@ class PoolWindowDataset(Dataset):
                 "actions": torch.zeros(self.time_steps, self.action_dimension) if actions is None else actions,
                 "action_present": torch.tensor(int(actions is not None), dtype=torch.int64),
             }
-        raise RuntimeError(f"No readable {self.duration:.2f}s audio-visual window after {self.config.attempts} records")
+        raise RuntimeError(f"No readable {self.duration:.2f}s audio-visual clip after {self.config.attempts} examples")
 
 
-class SyntheticWindowDataset(PoolWindowDataset):
-    def read_window(self, record_index: int, generator: torch.Generator) -> tuple[Tensor, Tensor, float] | None:
+# this is more for CPU sanity checks, but we can also use it for "smoke tests" on GPU I guess
+class SyntheticAVDataset(AVDataset):
+    def read_clip(self, example_index: int, generator: torch.Generator) -> tuple[Tensor, Tensor, float] | None:
         return (
             torch.rand(self.total_frames, 3, self.image_size, self.image_size, generator=generator),
             self.waveform_layout(0.1 * torch.randn(2, self.history_samples + self.samples, generator=generator)),
@@ -186,24 +235,22 @@ class SyntheticWindowDataset(PoolWindowDataset):
 
 def build_dataset(
     config: DatasetConfig, encoder: FrozenEncoderConfig, total_frames: int, layout: ControlLayout
-) -> PoolWindowDataset:
+) -> AVDataset:
     if config.synthetic:
-        return SyntheticWindowDataset(
-            [PoolRecord("synthetic", "synthetic")], None, config, encoder, total_frames, layout
-        )
+        return SyntheticAVDataset([AVExample("synthetic", "synthetic")], None, config, encoder, total_frames, layout)
     weights = {name: source.weight for name, source in config.sources.items() if source.weight > 0}
-    records = [record for name in weights for record in source_records(name, config.sources[name], "train")]
-    return PoolWindowDataset(records, weights, config, encoder, total_frames, layout)
+    examples = [example for name in weights for example in source_examples(name, config.sources[name], "train")]
+    return AVDataset(examples, weights, config, encoder, total_frames, layout)
 
 
 def build_evaluation_datasets(
     config: DatasetConfig, split: str, encoder: FrozenEncoderConfig, total_frames: int, layout: ControlLayout
-) -> dict[str, PoolWindowDataset]:
-    config = config.model_copy(update={"windows": config.validation_windows, "mirror_probability": 0.0})
+) -> dict[str, AVDataset]:
+    config = config.model_copy(update={"clips": config.validation_clips, "mirror_probability": 0.0})
     if config.synthetic:
         return {"synthetic": build_dataset(config, encoder, total_frames, layout)}
     return {
-        name: PoolWindowDataset(source_records(name, source, split), None, config, encoder, total_frames, layout)
+        name: AVDataset(source_examples(name, source, split), None, config, encoder, total_frames, layout)
         for name, source in config.sources.items()
         if has_split(source, split)
     }
