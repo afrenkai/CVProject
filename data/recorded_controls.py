@@ -5,10 +5,10 @@ from beartype import beartype
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 from data.control_types import ControlCapture, RecordedEvent
-from data.data_types import ActionWindowConfig
+from data.data_types import ActionClipConfig
 
 
-def update_held_state(event: RecordedEvent, keys: set[int], buttons: set[str], settings: ActionWindowConfig) -> None:
+def update_held_state(event: RecordedEvent, keys: set[int], buttons: set[str], settings: ActionClipConfig) -> None:
     payload = event.payload
     layout = settings.control_layout
     match event.topic, payload.event_type:
@@ -35,7 +35,7 @@ def update_held_state(event: RecordedEvent, keys: set[int], buttons: set[str], s
 
 
 def add_held_duration(
-    row: Tensor, elapsed_ns: int, keys: set[int], buttons: set[str], settings: ActionWindowConfig
+    row: Tensor, elapsed_ns: int, keys: set[int], buttons: set[str], settings: ActionClipConfig
 ) -> None:
     assert elapsed_ns >= 0
     for key in keys:
@@ -45,8 +45,8 @@ def add_held_duration(
 
 
 @jaxtyped(typechecker=beartype)
-def controls_for_window(
-    capture: ControlCapture, start_seconds: float, settings: ActionWindowConfig
+def controls_for_clip(
+    capture: ControlCapture, start_seconds: float, settings: ActionClipConfig
 ) -> Float[Tensor, "block control"]:
     assert math.isfinite(start_seconds)
     start_ns = round(start_seconds * 1e9)

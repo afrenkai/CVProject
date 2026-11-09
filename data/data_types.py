@@ -20,8 +20,8 @@ class DatasetConfig(FrozenModel):
     synthetic: bool = False
     # better to do Path type here???
     latent_cache: str
-    windows: PositiveInt
-    validation_windows: NonNegativeInt = 0
+    clips: PositiveInt
+    validation_clips: NonNegativeInt = 0
     seed: NonNegativeInt = 0
     mirror_probability: float = Field(default=0.0, ge=0.0, le=1.0)
     recorded_actions: bool = False
@@ -30,7 +30,7 @@ class DatasetConfig(FrozenModel):
     attempts: PositiveInt = 16
 
 
-class ActionWindowConfig(FrozenModel):
+class ActionClipConfig(FrozenModel):
     context_frames: PositiveInt
     target_frames: PositiveInt
     video_frames_per_step: PositiveInt

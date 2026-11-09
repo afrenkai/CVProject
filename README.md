@@ -8,8 +8,8 @@ SpeakUp is an audio-visual world model. Provided the context of what an agent ha
 
 Video runs at 10 fps. Each frame goes through a frozen DINOv3 ViT, giving a $16 \times 16$ grid of patch features per frame. Audio is loaded at 48 kHz:
 
-- **Semantic audio:** a 16 kHz copy goes through a frozen audio encoder for each stereo channel, giving 5 tokens per 0.1 s step for Dasheng.
-- **Spatial audio:** features computed from the raw 48 kHz waveform form a third audio channel. For stereo recordings these are interaural level and phase differences. For first-order ambisonics they are a sound-field descriptor.
+- **Semantic audio:** a 16 kHz copy goes through a frozen audio encoder for each stereo channel, giving 5 tokens per 0.1 s step for Dasheng. (16khz is a limitation of the encoder)
+- **Spatial audio:** features computed from the raw 48 kHz waveform make a third audio channel. For stereo recordings these are level and phase differences of the waveform. For first-order ambisonics they are a sound-field descriptor, almost a 3.5d waveform.
 
 At step $k$ the observation is
 
@@ -88,7 +88,7 @@ Our world model is a double-stage LightningDiT style model. It uses AdaLN blocks
 
 ### Planning
 
-We use the forward model as an inverse model. Given true future latents as a goal, we run a cross-entropy-method search over action chunks. Each candidate is scored by the latent distance between the futures it produces and the goal. Inferred actions are compared with the ground truth actions associated with the window. Our eval measures how much predictions depend on actions: it compares true, shuffled and null actions and tests whether the true actions can be retrieved.
+We use the forward model as an "inverse model". Given true future latents as a goal, we run a cross-entropy-method (CEM) search over action chunks. Each candidate of the search is scored by the latent distance between the futures it produces and the goal. (just cos sim). Inferred actions are compared with the ground truth actions associated with the clip. Our eval measures how much predictions depend on actions: it compares true, shuffled and null actions and tests whether the true actions can be retrieved. Obviously, if sound is missing but actions are still correct, then audio does not contribute meaningfully. By the same logic, if actions are swapped or removed, then it does not contribute or cannot be retrieved.
 
 ## Getting started
 
@@ -104,7 +104,7 @@ uv sync --extra cpu
 ```bash
 uv run --extra cpu -m data.latent_cache configs/pretrain/cpu.yaml --count 16
 uv run --extra cpu -m data.latent_cache configs/pretrain/cpu.yaml --split validation
-uv run --extra cpu -m training.pretrain configs/pretrain/cpu.yaml data.windows=16 trainer.max_steps=4
+uv run --extra cpu -m training.pretrain configs/pretrain/cpu.yaml data.clips=16 trainer.max_steps=4
 ```
 
 ### Using actual datasets to train:

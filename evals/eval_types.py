@@ -6,7 +6,7 @@ CostModality = Literal["video", "audio_video"]
 
 
 class ActionSearchConfig(FrozenModel):
-    windows: PositiveInt = 64
+    clips: PositiveInt = 64
     population: PositiveInt = 64
     elites: PositiveInt = 8
     iterations: PositiveInt = 4

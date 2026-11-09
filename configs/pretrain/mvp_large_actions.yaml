@@ -1,7 +1,7 @@
 inherit: [mvp_large.yaml]
 
 data:
-  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_actions_v1
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_actions_v2
   recorded_actions: true
 
 encoder:
@@ -12,4 +12,4 @@ objective:
   action_dropout: 0.1
 
 trainer:
-  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_v1
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_v2

@@ -8,7 +8,7 @@ inherit:
   - sources/fairplay.yaml
   - sources/tau_av.yaml
   - sources/greatest_hits.yaml
-  - turing.yaml
+  - turing_360p.yaml
 
 data:
   sources:

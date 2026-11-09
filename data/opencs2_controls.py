@@ -6,7 +6,7 @@ from beartype import beartype
 from jaxtyping import Float, jaxtyped
 from torch import Tensor
 from data.control_types import Opencs2InputMap
-from data.data_types import ActionWindowConfig
+from data.data_types import ActionClipConfig
 
 
 def read_opencs2_ticks(handle: BinaryIO) -> pyarrow.Table:
@@ -16,7 +16,7 @@ def read_opencs2_ticks(handle: BinaryIO) -> pyarrow.Table:
 
 @jaxtyped(typechecker=beartype)
 def opencs2_controls(
-    ticks: pyarrow.Table, start_seconds: float, settings: ActionWindowConfig, inputs: Opencs2InputMap
+    ticks: pyarrow.Table, start_seconds: float, settings: ActionClipConfig, inputs: Opencs2InputMap
 ) -> Float[Tensor, "block control"]:
     layout = settings.control_layout
     block_seconds = settings.video_frames_per_step / settings.video_rate
@@ -24,8 +24,8 @@ def opencs2_controls(
     blocks = np.floor((ticks["t"].to_numpy() - start_seconds) / block_seconds).astype(np.int64)
     inside = np.flatnonzero((blocks >= 0) & (blocks < block_count))
     counts = np.bincount(blocks[inside], minlength=block_count)
-    assert counts.min() >= inputs.minimum_ticks_per_block, "Tick stream does not cover the window"
-    assert ticks["is_alive"].to_numpy()[inside].all(), "Player is not alive for the whole window"
+    assert counts.min() >= inputs.minimum_ticks_per_block, "Tick stream does not cover the clip"
+    assert ticks["is_alive"].to_numpy()[inside].all(), "Player is not alive for the whole clip"
     held_count = layout.keyboard_count + len(layout.mouse_buttons)
     controls = torch.zeros(block_count, layout.dimension, dtype=torch.float64)
     active = ticks["active"].to_pylist()

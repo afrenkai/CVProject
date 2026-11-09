@@ -3,8 +3,8 @@ inherit: [mvp.yaml]
 data:
   synthetic: true
   latent_cache: outputs/cpu_cache
-  validation_windows: 4
-  windows: 400
+  validation_clips: 4
+  clips: 400
   mirror_probability: 0.0
   workers: 0
 
@@ -36,7 +36,7 @@ trainer:
   precision: fp32
   device: cpu
   ema_decay: 0.99
-  normalizer_windows: 2
+  normalizer_clips: 2
   log_every: 10
   checkpoint_steps: 100
   max_steps: 200

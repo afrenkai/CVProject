@@ -1,9 +1,9 @@
 inherit: [../data/mix.yaml]
 
 data:
-  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_v1
-  windows: 200000
-  validation_windows: 128
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_v2
+  clips: 200000
+  validation_clips: 128
   mirror_probability: 0.5
   workers: 10
 
@@ -36,7 +36,7 @@ optimizer:
   warmup_steps: 1000
 
 trainer:
-  output: ${oc.env:SPEAKUP_RUNS}/mvp_v1
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_v2
   epochs: 3
   batch_size: 32
   gradient_accumulation: 2

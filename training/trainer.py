@@ -67,8 +67,8 @@ class WorldModelTrainer(Trainer):
             logs.update({name: sum(values) / len(values) for name, values in self.running.items() if values})
             self.running = {}
             now, step = time.perf_counter(), self.state.global_step
-            windows = (step - self.last_log[1]) * self.args.train_batch_size * self.args.gradient_accumulation_steps
-            logs["windows_per_second"] = windows * self.args.world_size / max(now - self.last_log[0], 1e-6)
+            clips = (step - self.last_log[1]) * self.args.train_batch_size * self.args.gradient_accumulation_steps
+            logs["clips_per_second"] = clips * self.args.world_size / max(now - self.last_log[0], 1e-6)
             self.last_log = (now, step)
             if torch.cuda.is_available():
                 logs["peak_memory_gb"] = torch.cuda.max_memory_allocated() / 1e9
@@ -103,22 +103,6 @@ class EmaCallback(TrainerCallback):
     ) -> None:
         if self.averaged is not None:
             torch.save(self.averaged.state_dict(), Path(args.output_dir) / f"checkpoint-{state.global_step}" / "ema.pt")
-
-
-# TODO: handle nicer. this is really ugly but slurm needs to exit gracefully since doing multi-node
-class StopCallback(TrainerCallback):
-    def __init__(self, stop_at: float, stop_file: Path | None) -> None:
-        self.stop_at = stop_at
-        self.stop_file = stop_file
-
-    def on_step_end(
-        self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **settings: object
-    ) -> None:
-        deadline = bool(self.stop_at) and time.time() > self.stop_at
-        requested = self.stop_file is not None and self.stop_file.exists()
-        if deadline or requested:
-            control.should_save = True
-            control.should_training_stop = True
 
 
 class SlimLsdCallback(TrainerCallback):

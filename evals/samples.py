@@ -59,18 +59,14 @@ def ensemble_errors(
     seed: int,
 ) -> dict[str, Tensor]:
     batch = {name: batch[name] for name in ("video", "audio", "actions", "action_present")}
-    windows = batch["video"].shape[0]
-    repeated = {
-        name: repeat(tensor, "window ... -> (member window) ...", member=members) for name, tensor in batch.items()
-    }
+    clips = batch["video"].shape[0]
+    repeated = {name: repeat(tensor, "clip ... -> (member clip) ...", member=members) for name, tensor in batch.items()}
     result = {name: tensor.float() for name, tensor in rollout(objective, repeated, integration_steps, seed).items()}
     totals: dict[str, Tensor] = {}
     for modality, reduce in (("video", (0, 2, 3)), ("audio", (0, 2))):
-        predicted = rearrange(
-            result[f"predicted_{modality}"], "(member window) ... -> member window ...", member=members
-        )
-        target = result[f"true_{modality}"][:windows]
-        persistence = result[f"context_{modality}"][:windows, -1:].expand_as(target)
+        predicted = rearrange(result[f"predicted_{modality}"], "(member clip) ... -> member clip ...", member=members)
+        target = result[f"true_{modality}"][:clips]
+        persistence = result[f"context_{modality}"][:clips, -1:].expand_as(target)
         member_errors = (predicted - target).square().mean(dim=tuple(axis + 1 for axis in reduce[1:]))
         ensemble_mean = predicted.mean(dim=0)
         spread = predicted.var(dim=0, unbiased=True).mean(dim=reduce).sqrt()
