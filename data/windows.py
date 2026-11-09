@@ -134,7 +134,12 @@ class PoolWindowDataset(Dataset):
         audio_path = str(self.audio_paths[record_index])
         if audio_path and self.waveform_channels == 4:
             return AudioDecoder(audio_path, sample_rate=self.sample_rate)
-        return AudioDecoder(self.media(record_index), sample_rate=self.sample_rate, num_channels=2)
+        try:
+            return AudioDecoder(self.media(record_index), sample_rate=self.sample_rate, num_channels=2)
+        except ValueError:
+            if not audio_path:
+                raise
+            return AudioDecoder(audio_path, sample_rate=self.sample_rate, num_channels=2)
 
     def waveform_layout(self, waveform: Tensor) -> Tensor:
         if waveform.shape[0] == 4:
