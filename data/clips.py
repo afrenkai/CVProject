@@ -182,6 +182,7 @@ class AVDataset(Dataset):
         assert self.action_config is not None
         actions_path = str(self.action_paths[example_index])
         try:
+            #TODO: def not gonna fly lol but for now only cs2 has a .parquet
             if actions_path.split("::")[0].endswith(".parquet"):
                 ticks = read_opencs2_ticks(open_member(actions_path))
                 return opencs2_controls(ticks, start, self.action_config, self.action_config.opencs2_inputs)
@@ -196,7 +197,7 @@ class AVDataset(Dataset):
             return None
 
     def __getitem__(self, index: int) -> dict[str, Tensor]:
-        generator = torch.Generator().manual_seed(self.config.seed * 1_000_003 + index)
+        generator = torch.Generator().manual_seed(self.config.seed * 1_000_067 + index)
         for attempt in range(self.config.attempts):
             group = self.groups[int(torch.multinomial(self.group_weights, 1, generator=generator))]
             example_index = group[int(torch.randint(len(group), (1,), generator=generator))]
@@ -210,6 +211,7 @@ class AVDataset(Dataset):
                 if actions is None:
                     continue
             if actions is None and float(torch.rand(1, generator=generator)) < self.config.mirror_probability:
+                # thank god flip works along -dims
                 frames = frames.flip(-1)
                 waveform = waveform[[1, 0, *range(2, waveform.shape[0])]]
             return {

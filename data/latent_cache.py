@@ -17,22 +17,27 @@ class CachedClipDataset(Dataset):
     def __init__(self, directory: Path, clips: int | None = None) -> None:
         self.shards = sorted(directory.glob("shard_*.safetensors"))
         assert self.shards, f"No latent shards in {directory}"
-        self.lengths = [int(self.metadata(shard)["clips"]) for shard in self.shards]
+        self.lengths = [self.rows(shard) for shard in self.shards]
         self.starts = [sum(self.lengths[:index]) for index in range(len(self.lengths))]
         assert [
             int(shard.stem.removeprefix("shard_")) for shard in self.shards
         ] == self.starts, f"Latent shards in {directory} are not (C) contiguous"
         self.total = sum(self.lengths) if clips is None else min(clips, sum(self.lengths))
-        self.handles: dict[int, object] = {}
+        self.handles: dict[int, safe_open] = {}
 
-    def metadata(self, shard: Path) -> dict[str, str]:
+    def rows(self, shard: Path) -> int:
         with safe_open(str(shard), "pt") as handle:
-            return handle.metadata()
+            return handle.get_slice("video").get_shape()[0]
 
     def __len__(self) -> int:
         return self.total
 
     def __getitem__(self, index: int) -> dict[str, Tensor]:
+        """
+        lookup using bisect is O(log n)
+        regardless, this is still a "grid" of shardsxidx which we open via safetensors' safe open
+
+        """
         shard = bisect_right(self.starts, index) - 1
         row = index - self.starts[shard]
         if shard not in self.handles:
@@ -75,7 +80,6 @@ def write_shards(
         save_file(
             {name: torch.cat(values).contiguous() for name, values in parts.items()},
             str(partial),
-            metadata={"clips": str(len(indices))},
         )
         partial.rename(path)
         print(f"wrote {path} ({len(indices)} clips)", flush=True)
