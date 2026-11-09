@@ -68,9 +68,7 @@ The choice of $s$ was ablated between 3,7,and 11. High-dimensional targets need 
 ### Sampling several futures
 
 Generation is akin to an inverse problem, starting from pure noise and integrating the learned ODE with Euler steps on a shifted time grid $0 = t_0 < \dots < t_N = 1$:
-$$
-x_{t_{i+1}} = x_{t_i} + (t_{i+1} - t_i)\, v_\theta(x_{t_i}, t_i, c).
-$$
+$$x_{t_{i+1}} = x_{t_i} + (t_{i+1} - t_i)\, v_\theta(x_{t_i}, t_i, c).$$
 
 Each noise draw $x_0$ gives a different future. Drawing $M$ samples gives an ensemble $\{\hat x^{(m)}\}_{m=1}^{M}$. We score it with the continuous ranked probability score,
 
