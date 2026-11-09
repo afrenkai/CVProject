@@ -3,4 +3,4 @@ data:
     kinetics400:
       root: ???
       splits: ${.root}/splits/kinetics400/{split}.txt
-      video: ${.root}/{key}.mp4
+      media: ${.root}/{key}.mp4

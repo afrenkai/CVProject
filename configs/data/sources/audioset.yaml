@@ -3,4 +3,4 @@ data:
     audioset:
       root: ???
       splits: ${.root}/splits/audioset/{split}.txt
-      video: ${.root}/{key}.mkv
+      media: ${.root}/{key}.mkv

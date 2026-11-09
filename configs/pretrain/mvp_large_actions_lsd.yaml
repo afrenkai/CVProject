@@ -11,6 +11,6 @@ optimizer:
   warmup_steps: 200
 
 trainer:
-  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_lsd_v2
-  initialize_from: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_v2/checkpoint-4689
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_lsd
+  initialize_from: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions/checkpoint-4689
   epochs: 1

@@ -22,10 +22,11 @@ from models.encoder_types import FrozenEncoderConfig
 
 @dataclass(frozen=True)
 class AVExample:
-    path: str
+    media_path: str
     dataset: str
     actions_path: str | None = None
     audio_path: str | None = None
+    ambisonic_path: str | None = None
 
 
 @functools.lru_cache(maxsize=64)
@@ -63,13 +64,14 @@ def source_examples(name: str, source: SourceConfig, split: str) -> list[AVExamp
         keys = handle.read().split()
     if source.samples is not None:
         return shard_examples(name, source, source.samples, keys)
-    assert source.video is not None, f"{name} needs either a video template or a samples index"
+    assert source.media is not None, f"{name} needs either a media template or a samples index"
     return [
         AVExample(
-            source.video.format(key=key),
+            source.media.format(key=key),
             name,
             None if source.actions is None else source.actions.format(key=key),
             None if source.audio is None else source.audio.format(key=key),
+            None if source.ambisonic is None else source.ambisonic.format(key=key),
         )
         for key in keys
     ]
@@ -86,8 +88,9 @@ class AVDataset(Dataset):
         layout: ControlLayout,
     ) -> None:
         self.config = config
-        self.paths = np.array([example.path for example in examples])
+        self.media_paths = np.array([example.media_path for example in examples])
         self.audio_paths = np.array([example.audio_path or "" for example in examples])
+        self.ambisonic_paths = np.array([example.ambisonic_path or "" for example in examples])
         self.action_paths = np.array([example.actions_path or "" for example in examples])
         self.datasets = np.array([example.dataset for example in examples])
         weights = weights or {name: float((self.datasets == name).sum()) for name in np.unique(self.datasets)}
@@ -120,7 +123,7 @@ class AVDataset(Dataset):
         return self.config.clips
 
     def media(self, example_index: int) -> str | BinaryIO:
-        path = str(self.paths[example_index])
+        path = str(self.media_paths[example_index])
         return open_member(path) if "::" in path else path
 
     def video_decoder(self, example_index: int) -> VideoDecoder:
@@ -131,15 +134,12 @@ class AVDataset(Dataset):
         )
 
     def audio_decoder(self, example_index: int) -> AudioDecoder:
+        ambisonic_path = str(self.ambisonic_paths[example_index])
         audio_path = str(self.audio_paths[example_index])
-        if audio_path and self.waveform_channels == 4:
-            return AudioDecoder(audio_path, sample_rate=self.sample_rate)
-        try:
-            return AudioDecoder(self.media(example_index), sample_rate=self.sample_rate, num_channels=2)
-        except ValueError:
-            if not audio_path:
-                raise
-            return AudioDecoder(audio_path, sample_rate=self.sample_rate, num_channels=2)
+        if ambisonic_path and self.waveform_channels == 4:
+            return AudioDecoder(ambisonic_path, sample_rate=self.sample_rate)
+        source = audio_path or self.media(example_index)
+        return AudioDecoder(source, sample_rate=self.sample_rate, num_channels=2)
 
     def waveform_layout(self, waveform: Tensor) -> Tensor:
         if waveform.shape[0] == 4:
@@ -182,12 +182,12 @@ class AVDataset(Dataset):
         assert self.action_config is not None
         actions_path = str(self.action_paths[example_index])
         try:
-            #TODO: def not gonna fly lol but for now only cs2 has a .parquet
+            # TODO: def not gonna fly lol but for now only cs2 has a .parquet
             if actions_path.split("::")[0].endswith(".parquet"):
                 ticks = read_opencs2_ticks(open_member(actions_path))
                 return opencs2_controls(ticks, start, self.action_config, self.action_config.opencs2_inputs)
             capture = read_recorded_capture(
-                Path(str(self.paths[example_index])),
+                Path(str(self.media_paths[example_index])),
                 self.action_config,
                 stop_seconds=start + self.duration + 0.5,
                 start_seconds=max(0.0, start - self.action_config.control_state_lookback_seconds),

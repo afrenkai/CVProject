@@ -10,13 +10,13 @@ data:
       # have it shipped. 
       # pyav has it shipped though
       root: /archive/afrenk/media_360p/sphere360
-      video: ${.root}/video/{key}.mkv
+      media: ${.root}/video/{key}.mkv
     d2e:
       root: /archive/afrenk/media_360p/d2e
-      audio_root: /scratch/afrenk/speakup/d2e_audio
+      audio_root: ${.root}/audio
     rainbow_six:
       root: /archive/afrenk/media_360p/rainbow_six
-      audio_root: /scratch/afrenk/speakup/d2e_audio
+      audio_root: ${.root}/audio
     fairplay:
       root: /archive/afrenk/media_360p/fairplay
     tau_av:

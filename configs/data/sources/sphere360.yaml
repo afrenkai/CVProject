@@ -3,5 +3,5 @@ data:
     sphere360:
       root: ???
       splits: ${.root}/splits/sphere360/{split}.txt
-      video: ${.root}/video/{key}.webm
-      audio: ${.root}/audio/{key}.webm
+      media: ${.root}/video/{key}.webm
+      ambisonic: ${.root}/audio/{key}.webm

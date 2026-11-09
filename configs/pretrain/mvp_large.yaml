@@ -5,6 +5,6 @@ model:
   diffusion_head: {hidden_dimension: 2048, heads: 16, layers: 2}
 
 trainer:
-  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_v2
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large
   batch_size: 16
   gradient_accumulation: 4

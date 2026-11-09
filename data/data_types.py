@@ -7,9 +7,10 @@ class SourceConfig(FrozenModel):
     root: str
     audio_root: str | None = None
     splits: str
-    video: str | None = None
+    media: str | None = None
     samples: str | None = None
     audio: str | None = None
+    ambisonic: str | None = None
     actions: str | None = None
     weight: NonNegativeFloat = 0.0
 

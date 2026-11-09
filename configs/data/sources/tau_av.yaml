@@ -3,5 +3,5 @@ data:
     tau_av:
       root: ???
       splits: ${.root}/splits/tau_av/{split}.txt
-      video: ${.root}/video/{key}.mp4
+      media: ${.root}/video/{key}.mp4
       audio: ${.root}/audio/{key}.wav
