@@ -7,10 +7,19 @@ from torchaudio.functional import resample
 from models.audio.audiomosaic import AudioMosaicEncoder
 from models.audio.base import AudioEncoder
 from models.audio.dasheng import DashengAudioEncoder
+from models.audio.pe_audio import PeAvAudioEncoder
 from models.audio.spatial import BinauralFeatures
-from models.encoder_types import AudioMosaicConfig, DashengConfig, Dinov3Config, FrozenEncoderConfig
+from models.encoder_types import (
+    AudioMosaicConfig,
+    DashengConfig,
+    Dinov3Config,
+    FrozenEncoderConfig,
+    PeAvAudioConfig,
+    PeAvVideoConfig,
+)
 from models.video.base import VideoEncoder
 from models.video.dinov3 import Dinov3VideoEncoder
+from models.video.pe_video import PeAvVideoEncoder
 
 
 def build_audio_encoder(config: FrozenEncoderConfig, device: torch.device) -> AudioEncoder:
@@ -19,14 +28,16 @@ def build_audio_encoder(config: FrozenEncoderConfig, device: torch.device) -> Au
             return DashengAudioEncoder(config).freeze(device)
         case AudioMosaicConfig():
             return AudioMosaicEncoder(config).freeze(device)
+        case PeAvAudioConfig():
+            return PeAvAudioEncoder(config).freeze(device)
 
 
 def build_video_encoder(config: FrozenEncoderConfig, device: torch.device) -> VideoEncoder:
     match config.video:
         case Dinov3Config() as video:
             return Dinov3VideoEncoder(config, video).freeze(device)
-        case _:
-            raise NotImplementedError("other video encoders not implemented yet")
+        case PeAvVideoConfig() as video:
+            return PeAvVideoEncoder(config, video).freeze(device)
 
 
 class JointEncoder(nn.Module):

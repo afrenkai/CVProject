@@ -19,6 +19,7 @@ class AudioTiming(FrozenModel):
     audio_tokens_per_step: PositiveInt
     audio_history_steps: NonNegativeInt
     audio_token_parts: PositiveInt
+    sample_rate: PositiveInt = 16000
 
 
 class AudioMosaicPreprocessing(FrozenModel):
@@ -65,6 +66,14 @@ class Dinov3Config(FrozenModel):
     cache_directory: Path | None = None
 
 
+class PeAvVideoConfig(FrozenModel):
+    kind: Literal["pe_av"] = "pe_av"
+    model_id: str = "facebook/pe-av-base"
+    feature_dimension: PositiveInt = 1024
+    layers: tuple[PositiveInt, ...] = (6, 12, 18, 24)
+    patch_size: PositiveInt = 16
+
+
 class DashengConfig(FrozenModel):
     kind: Literal["dasheng"] = "dasheng"
     model_id: str = "mispeech/dasheng-1.2B"
@@ -106,8 +115,25 @@ class AudioMosaicConfig(FrozenModel):
         )
 
 
-type VideoEncoderSettings = Dinov3Config
-type AudioEncoderSettings = Annotated[DashengConfig | AudioMosaicConfig, Field(discriminator="kind")]
+class PeAvAudioConfig(FrozenModel):
+    kind: Literal["pe_av"] = "pe_av"
+    model_id: str = "facebook/pe-av-base"
+
+    def timing(self, directory: Path, steps: StepTiming) -> AudioTiming:
+        audio = AutoConfig.from_pretrained(str(directory), local_files_only=True).audio_video_config.audio_config
+        return AudioTiming(
+            audio_feature_dimension=audio.hidden_size,
+            audio_native_frame_rate=audio.dac_config.sampling_rate // audio.dac_config.hop_length,
+            audio_frame_repeat=2,
+            audio_tokens_per_step=5,
+            audio_history_steps=0,
+            audio_token_parts=1,
+            sample_rate=audio.dac_config.sampling_rate,
+        )
+
+
+type VideoEncoderSettings = Annotated[Dinov3Config | PeAvVideoConfig, Field(discriminator="kind")]
+type AudioEncoderSettings = Annotated[DashengConfig | AudioMosaicConfig | PeAvAudioConfig, Field(discriminator="kind")]
 
 
 class FrozenEncoderConfig(AudioTiming):
@@ -116,7 +142,6 @@ class FrozenEncoderConfig(AudioTiming):
     audio_model_directory: Path
     image_size: PositiveInt = 128
     video_rate: PositiveInt = 30
-    sample_rate: PositiveInt = 16000
     video_frames_per_step: PositiveInt = 3
     context_frames: PositiveInt = 60
     bfloat16: bool = False

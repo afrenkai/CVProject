@@ -13,6 +13,7 @@ class VideoEncoder(nn.Module, ABC):
     def __init__(self, config: FrozenEncoderConfig) -> None:
         super().__init__()
         self.config = config
+        self.input_size = config.image_size
 
     def freeze(self, device: torch.device) -> Self:
         """
@@ -31,7 +32,7 @@ class VideoEncoder(nn.Module, ABC):
     def forward(
         self, frames: Float[Tensor, "batch time channel height width"]
     ) -> Float[Tensor, "batch time patch feature"]:
-        size = self.config.image_size
+        size = self.input_size
         flat = rearrange(frames.float(), "batch time channel height width -> (batch time) channel height width")
         if flat.shape[-2:] != (size, size):
             flat = functional.interpolate(flat, size=(size, size), mode="bilinear", align_corners=False)
