@@ -5,7 +5,7 @@ from data.data_types import DatasetConfig
 from models.encoder_types import EncoderConfig
 from models.model_types import WorldModelConfig
 
-type OptimizerName = Literal["muon", "gns_muon", "gns_muon_ampere", "dion3"]
+type OptimizerName = Literal["muon", "gns_muon", "gns_muon_ampere", "dion3", "adamw"]
 
 
 class SlimLsdConfig(FrozenModel):
@@ -32,7 +32,8 @@ class OptimizerConfig(FrozenModel):
     weight_decay: NonNegativeFloat = 0.1
     warmup_steps: NonNegativeInt = 2000
     final_learning_rate_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
-    gradient_clip: PositiveFloat = 1.0
+    gradient_clip: NonNegativeFloat = 1.0
+    betas: tuple[PositiveFloat, PositiveFloat] = (0.9, 0.999)
 
 
 class TrainerConfig(FrozenModel):

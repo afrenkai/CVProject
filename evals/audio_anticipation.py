@@ -4,10 +4,8 @@ import torch
 from einops import rearrange, repeat
 from torch import Tensor
 from torch.utils.data import DataLoader
-from configs.loading import load_run_settings
 from data.latent_cache import CachedClipDataset
 from evals.samples import ensemble_crps, rollout
-from models.joint_encoder import build_encoder_config
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 
@@ -60,14 +58,14 @@ def main(
     integration_steps: int,
     onset_steps: int,
 ) -> None:
-    config = PretrainConfig.model_validate(load_run_settings(run / "config.yaml", []))
+    config = PretrainConfig.model_validate_json((run / "config.json").read_text())
     device = torch.device("cuda")
     bfloat16 = config.trainer.precision == "bf16"
-    encoder_config = build_encoder_config(config.encoder, bfloat16=bfloat16)
+    encoder_config = config.encoder.resolve(bfloat16=bfloat16)
     objective = restore_objective(config, encoder_config, checkpoint_weights(checkpoint, True), device)
     twin_objective = None
     if twin is not None:
-        twin_config = PretrainConfig.model_validate(load_run_settings(twin / "config.yaml", []))
+        twin_config = PretrainConfig.model_validate_json((twin / "config.json").read_text())
         twin_objective = restore_objective(
             twin_config, encoder_config, checkpoint_weights(twin / checkpoint.name, True), device
         )

@@ -4,10 +4,8 @@ from pathlib import Path
 import torch
 import wandb
 from torch.utils.data import DataLoader, Dataset, default_collate
-from configs.loading import load_run_settings
 from data.latent_cache import CachedClipDataset
 from evals.samples import ensemble_errors, ensemble_metrics
-from models.joint_encoder import build_encoder_config
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 
@@ -46,15 +44,16 @@ def flow_losses(
 def main(
     run: Path, checkpoint: Path, clips: int, batch_size: int, workers: int, spread_clips: int, members: int
 ) -> None:
-    config = PretrainConfig.model_validate(load_run_settings(run / "config.yaml", []))
+    config = PretrainConfig.model_validate_json((run / "config.json").read_text())
     device = torch.device("cuda")
     step = int(checkpoint.name.removeprefix("checkpoint-"))
     bfloat16 = config.trainer.precision == "bf16"
-    encoder_config = build_encoder_config(config.encoder, bfloat16=bfloat16)
+    encoder_config = config.encoder.resolve(bfloat16=bfloat16)
     objectives = {
         label: restore_objective(config, encoder_config, checkpoint_weights(checkpoint, label == "ema"), device)
         for label in ("raw", "ema")
     }
+    assert config.data.latent_cache is not None
     validation = {
         directory.name: CachedClipDataset(directory, clips)
         for directory in sorted((Path(config.data.latent_cache) / "validation").iterdir())

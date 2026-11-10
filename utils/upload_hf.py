@@ -2,13 +2,13 @@ import argparse
 from pathlib import Path
 from huggingface_hub import HfApi
 from transformers.trainer_utils import get_last_checkpoint
-from configs.loading import load_run_settings
 from training.objective import checkpoint_weights
+from training.training_types import PretrainConfig
 from utils.hub import SpeakUp
 
 
 def load_run(run: Path, use_ema: bool) -> SpeakUp:
-    settings = load_run_settings(run / "config.yaml", [])
+    settings = PretrainConfig.model_validate_json((run / "config.json").read_text()).model_dump(mode="json")
     checkpoint = get_last_checkpoint(str(run))
     assert checkpoint is not None, f"No checkpoint-* directory in {run}"
     model = SpeakUp({name: settings[name] for name in ("encoder", "model", "objective")})

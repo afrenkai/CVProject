@@ -1,20 +1,20 @@
 from functools import partial
 import torch
-from beartype import beartype
 from einops import rearrange
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float
 from safetensors.torch import load_file
 from timm.layers import PatchEmbed
 from timm.models.vision_transformer import VisionTransformer
 from torch import Tensor, nn
 from torch.nn import functional
-from torchaudio.compliance.kaldi import fbank
+from models.audio.base import AudioEncoder
+from models.audio.spectrogram import kaldi_fbank
 from models.encoder_types import AudioMosaicArchitecture, FrozenEncoderConfig
 
 
-class AudioMosaicEncoder(nn.Module):
-    def __init__(self, config: FrozenEncoderConfig, device: torch.device) -> None:
-        super().__init__()
+class AudioMosaicEncoder(AudioEncoder):
+    def __init__(self, config: FrozenEncoderConfig) -> None:
+        super().__init__(config)
         architecture = AudioMosaicArchitecture.model_validate_json(
             (config.audio_model_directory / "config.json").read_text()
         )
@@ -26,7 +26,6 @@ class AudioMosaicEncoder(nn.Module):
         assert architecture.embed_dim * frequency_patches == config.audio_feature_dimension
         assert config.audio_frame_repeat == 1 and config.audio_tokens_per_step == 1
         assert config.sample_rate % config.audio_native_frame_rate == 0
-        self.settings = config
         self.architecture = architecture
         layer_norm = partial(nn.LayerNorm, eps=1e-6)
         self.encoder = VisionTransformer(
@@ -59,43 +58,21 @@ class AudioMosaicEncoder(nn.Module):
             {name: tensor for name, tensor in weights.items() if not name.startswith(("projector.", "fc_norm."))}
         )
         self.output_norm.load_state_dict({"weight": weights["fc_norm.weight"], "bias": weights["fc_norm.bias"]})
-        self.to(device=device, dtype=torch.float32).eval().requires_grad_(False)
 
-    @torch.no_grad()
-    @jaxtyped(typechecker=beartype)
-    def forward(
-        self,
-        waveform: Float[Tensor, "batch channel sample"],
-    ) -> Float[Tensor, "mono_batch feature time"]:
-        config = self.settings
+    def features(self, waveform: Float[Tensor, "mono sample"]) -> Float[Tensor, "mono feature time"]:
+        config = self.config
         preprocessing = self.architecture.audio_preprocessing
         frames, mels = self.architecture.spec_size
         patch_frames = self.architecture.patch_size[0]
         time_patches = frames // patch_frames
         architecture = self.architecture
         step_samples = config.sample_rate // config.audio_native_frame_rate
-        assert waveform.shape[1] == 2 and torch.isfinite(waveform).all()
         assert waveform.shape[-1] % step_samples == 0
         kept = min(waveform.shape[-1], architecture.capacity_samples // step_samples * step_samples)
-        mono = rearrange(waveform[..., -kept:].float(), "batch channel sample -> (batch channel) sample")
+        mono = waveform[..., -kept:]
         padding = architecture.capacity_samples - mono.shape[-1]
         padded = functional.pad(mono - mono.mean(dim=-1, keepdim=True), (padding, 0))
-        with torch.autocast(waveform.device.type, enabled=False):
-            spectrogram = torch.stack(
-                [
-                    fbank(
-                        rearrange(clip, "sample -> 1 sample"),
-                        htk_compat=True,
-                        sample_frequency=config.sample_rate,
-                        use_energy=False,
-                        window_type="hanning",
-                        num_mel_bins=mels,
-                        dither=0.0,
-                        frame_shift=preprocessing.frame_shift,
-                    )
-                    for clip in padded
-                ]
-            )
+        spectrogram = kaldi_fbank(padded, config.sample_rate, mels, preprocessing.frame_shift)
         assert spectrogram.shape[1:] == (frames, mels)
         normalized = (spectrogram - preprocessing.norm_mean) / preprocessing.norm_std
         tokens = self.encoder.forward_features(rearrange(normalized, "mono frame mel -> mono 1 frame mel"))
@@ -118,5 +95,4 @@ class AudioMosaicEncoder(nn.Module):
             rearrange(position - lower, "time -> 1 time 1"),
         )
         assert resampled.shape == (mono.shape[0], steps, config.audio_feature_dimension)
-        assert torch.isfinite(resampled).all()
         return rearrange(resampled, "mono time feature -> mono feature time")

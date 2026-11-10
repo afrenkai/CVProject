@@ -7,9 +7,9 @@ from safetensors.torch import save_file
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Subset
 from configs.loading import load_run_settings
-from data.clips import AVDataset, build_dataset, build_evaluation_datasets
+from data.clips import WorldModelDataset, build_dataset, build_evaluation_datasets
 from data.control_types import ControlLayout
-from models.joint_encoder import JointEncoder, build_encoder_config
+from models.joint_encoder import JointEncoder
 from training.training_types import PretrainConfig
 
 
@@ -53,7 +53,7 @@ class CachedClipDataset(Dataset):
 
 @torch.no_grad()
 def write_shards(
-    dataset: AVDataset,
+    dataset: WorldModelDataset,
     encoder: JointEncoder,
     directory: Path,
     start: int,
@@ -94,8 +94,9 @@ def main(
 ) -> None:
     config = PretrainConfig.model_validate(load_run_settings(config_path, overrides))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    encoder_config = build_encoder_config(config.encoder, bfloat16=config.trainer.precision == "bf16")
+    encoder_config = config.encoder.resolve(bfloat16=config.trainer.precision == "bf16")
     encoder = JointEncoder(encoder_config, device).eval()
+    assert config.data.latent_cache is not None
     output = Path(config.data.latent_cache)
     layout = ControlLayout()
     settings = {"shard_clips": 1024, "batch_size": 32, "workers": config.data.workers, "device": device}

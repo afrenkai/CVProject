@@ -1,26 +1,24 @@
 import argparse
-import os
 from pathlib import Path
 import torch
 import torch.distributed as dist
-from omegaconf import OmegaConf
 from torch.optim.swa_utils import AveragedModel
 from torch.utils.data import DataLoader, Dataset, Subset
-from transformers import TrainingArguments, get_cosine_with_min_lr_schedule_with_warmup
-from transformers.trainer_utils import get_last_checkpoint
+from transformers import TrainingArguments
 from configs.loading import load_run_settings
 from data.control_types import ControlLayout
 from data.latent_cache import CachedClipDataset
 from models.encoder_types import FrozenEncoderConfig
-from models.joint_encoder import build_encoder_config
 from models.normalization import AudioVisualNormalizer, RunningMoments
 from models.transformers import AdaptiveAttentionBlock
 from training.objective import WorldModelObjective, build_objective, checkpoint_weights
-from training.optimization import build_optimizer, warmup_ema_update
+from training.optimization import build_optimizer, build_schedule, warmup_ema_update
 from training.trainer import (
     EmaCallback,
     SlimLsdCallback,
     WorldModelTrainer,
+    start_run,
+    training_arguments,
 )
 from training.training_types import PretrainConfig
 
@@ -41,39 +39,9 @@ def fit_normalizer(
     return AudioVisualNormalizer(*(tensor.cpu() for tensor in [*video_moments.result(), *audio_moments.result()]))
 
 
-def training_arguments(config: PretrainConfig) -> TrainingArguments:
-    trainer_config, optimizer_config, data_config = config.trainer, config.optimizer, config.data
-    output = Path(trainer_config.output)
-    return TrainingArguments(
-        output_dir=str(output),
-        run_name=output.name,
-        per_device_train_batch_size=trainer_config.batch_size,
-        gradient_accumulation_steps=trainer_config.gradient_accumulation,
-        num_train_epochs=trainer_config.epochs,
-        max_steps=trainer_config.max_steps or -1,
-        max_grad_norm=optimizer_config.gradient_clip,
-        bf16=trainer_config.precision == "bf16",
-        use_cpu=trainer_config.device == "cpu",
-        logging_steps=trainer_config.log_every,
-        save_strategy="steps",
-        eval_strategy="steps" if data_config.validation_clips else "no",
-        eval_steps=trainer_config.eval_steps,
-        per_device_eval_batch_size=trainer_config.batch_size,
-        save_steps=trainer_config.checkpoint_steps,
-        save_total_limit=trainer_config.checkpoint_limit,
-        report_to=[] if trainer_config.wandb_mode == "disabled" else ["wandb"],
-        dataloader_num_workers=data_config.workers,
-        dataloader_prefetch_factor=4 if data_config.workers else None,
-        dataloader_drop_last=True,
-        remove_unused_columns=False,
-        train_sampling_strategy="sequential",
-        ddp_find_unused_parameters=False,
-        seed=data_config.seed,
-    )
-
-
 def load_datasets(config: PretrainConfig, rank: int) -> tuple[Dataset, dict[str, Dataset] | None]:
     data_config = config.data
+    assert data_config.latent_cache is not None
     cache = Path(data_config.latent_cache)
     dataset = CachedClipDataset(cache / "train", data_config.clips)
     if rank == 0:
@@ -124,7 +92,7 @@ def warm_up(
 ) -> None:
     device, batch_size = arguments.device, config.trainer.batch_size
     time_steps = config.encoder.total_frames // encoder_config.video_frames_per_step
-    patches = (encoder_config.image_size // 16) ** 2
+    patches = encoder_config.video_patches
     clips = (
         torch.randn(batch_size, time_steps, patches, encoder_config.video_latent_dimension, device=device),
         torch.randn(batch_size, time_steps, encoder_config.audio_latent_dimension, device=device),
@@ -144,20 +112,12 @@ def warm_up(
 
 def main(config: PretrainConfig) -> None:
     trainer_config, optimizer_config = config.trainer, config.optimizer
-    os.environ.setdefault("WANDB_PROJECT", trainer_config.wandb_project)
-    os.environ.setdefault("WANDB_MODE", trainer_config.wandb_mode)
-    os.environ.setdefault("WANDB_DIR", trainer_config.output)
-    os.environ.setdefault("WANDB_RUN_ID", Path(trainer_config.output).name)
-    os.environ.setdefault("WANDB_RESUME", "allow")
-    arguments = training_arguments(config)
+    arguments = training_arguments(trainer_config, config.data, optimizer_config)
     rank, world = arguments.process_index, arguments.world_size
     output = Path(trainer_config.output)
-    output.mkdir(parents=True, exist_ok=True)
-    if rank == 0:
-        OmegaConf.save(OmegaConf.create(config.model_dump(mode="json")), output / "config.yaml")
-    resume = get_last_checkpoint(str(output))
+    resume = start_run(config, trainer_config, arguments)
 
-    encoder_config = build_encoder_config(config.encoder, bfloat16=trainer_config.precision == "bf16")
+    encoder_config = config.encoder.resolve(bfloat16=trainer_config.precision == "bf16")
     dataset, validation = load_datasets(config, rank)
     normalizer = load_normalizer(output, dataset, config, arguments)
 
@@ -185,12 +145,8 @@ def main(config: PretrainConfig) -> None:
     total_steps = max(
         trainer_config.max_steps or steps_per_epoch * trainer_config.epochs, optimizer_config.warmup_steps + 1
     )
-    optimizer = build_optimizer(
-        objective, optimizer_config.name, optimizer_config.learning_rate, optimizer_config.weight_decay
-    )
-    schedule = get_cosine_with_min_lr_schedule_with_warmup(
-        optimizer, optimizer_config.warmup_steps, total_steps, min_lr_rate=optimizer_config.final_learning_rate_fraction
-    )
+    optimizer = build_optimizer(objective, optimizer_config)
+    schedule = build_schedule(optimizer, optimizer_config, total_steps)
     averaged = (
         AveragedModel(
             objective,
