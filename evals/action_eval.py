@@ -4,10 +4,8 @@ import torch
 from einops import rearrange, repeat
 from torch import Tensor
 from torch.utils.data import DataLoader, Subset
-from configs.loading import load_run_settings
 from data.latent_cache import CachedClipDataset
 from evals.samples import ensemble_errors, rollout
-from models.joint_encoder import build_encoder_config
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 
@@ -100,10 +98,10 @@ def main(
     candidates: int,
     integration_steps: int,
 ) -> None:
-    config = PretrainConfig.model_validate(load_run_settings(run / "config.yaml", []))
+    config = PretrainConfig.model_validate_json((run / "config.json").read_text())
     device = torch.device("cuda")
     bfloat16 = config.trainer.precision == "bf16"
-    encoder_config = build_encoder_config(config.encoder, bfloat16=bfloat16)
+    encoder_config = config.encoder.resolve(bfloat16=bfloat16)
     objective = restore_objective(config, encoder_config, checkpoint_weights(checkpoint, True), device)
     dataset = CachedClipDataset(cache)
     present = [index for index in range(len(dataset)) if int(dataset[index]["action_present"]) == 1][:clips]

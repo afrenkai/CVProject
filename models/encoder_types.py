@@ -1,9 +1,24 @@
 from pathlib import Path
-from typing import Literal
-from pydantic import BaseModel, ConfigDict, NonNegativeInt, PositiveFloat, PositiveInt
+from typing import Annotated, Literal
+from huggingface_hub import snapshot_download
+from pydantic import BaseModel, ConfigDict, Field, NonNegativeInt, PositiveFloat, PositiveInt
+from transformers import AutoConfig
 from configs.config_types import FrozenModel
 
-AudioEncoderName = Literal["dasheng", "audiomosaic"]
+
+class StepTiming(FrozenModel):
+    video_rate: PositiveInt
+    video_frames_per_step: PositiveInt
+    context_frames: PositiveInt
+
+
+class AudioTiming(FrozenModel):
+    audio_feature_dimension: PositiveInt
+    audio_native_frame_rate: PositiveInt
+    audio_frame_repeat: PositiveInt
+    audio_tokens_per_step: PositiveInt
+    audio_history_steps: NonNegativeInt
+    audio_token_parts: PositiveInt
 
 
 class AudioMosaicPreprocessing(FrozenModel):
@@ -31,6 +46,7 @@ class AudioMosaicArchitecture(BaseModel):
 
     @property
     def window_samples(self) -> int:
+        #TODO: make adaptive
         return self.audio_preprocessing.sample_rate * 25 // 1000
 
     @property
@@ -38,39 +54,71 @@ class AudioMosaicArchitecture(BaseModel):
         return self.window_samples + (self.spec_size[0] - 1) * self.frame_shift_samples
 
 
-class EncoderConfig(FrozenModel):
-    video_model: str = "vit_large_patch16_dinov3.lvd1689m"
-    video_feature_dimension: PositiveInt = 1024
-    video_layers: tuple[PositiveInt, ...] = (6, 12, 18, 24)
-    image_size: PositiveInt = 256
-    audio_encoder: AudioEncoderName = "dasheng"
-    audio_model: str = "mispeech/dasheng-1.2B"
-    audio_frequency_tokens: bool = False
-    video_rate: PositiveInt = 10
-    video_frames_per_step: PositiveInt = 1
-    context_frames: PositiveInt = 12
-    total_frames: PositiveInt = 40
-    spatial_audio: bool = False
+class Dinov3Config(FrozenModel):
+    kind: Literal["dinov3"] = "dinov3"
+    model_id: str = "vit_large_patch16_dinov3.lvd1689m"
+    feature_dimension: PositiveInt = 1024
+    layers: tuple[PositiveInt, ...] = (6, 12, 18, 24)
+    patch_size: PositiveInt = 16
+    mean: tuple[float, float, float] = (0.485, 0.456, 0.406)
+    standard_deviation: tuple[float, float, float] = (0.229, 0.224, 0.225)
+    cache_directory: Path | None = None
 
 
-class FrozenEncoderConfig(FrozenModel):
-    video_model: str = "vit_large_patch16_dinov3.lvd1689m"
-    video_cache_directory: Path | None = None
-    video_layers: tuple[PositiveInt, ...] = (6, 12, 18, 24)
-    video_feature_dimension: PositiveInt = 1024
+class DashengConfig(FrozenModel):
+    kind: Literal["dasheng"] = "dasheng"
+    model_id: str = "mispeech/dasheng-1.2B"
+
+    def timing(self, directory: Path, steps: StepTiming) -> AudioTiming:
+        pretrained = AutoConfig.from_pretrained(str(directory), trust_remote_code=True, local_files_only=True)
+        return AudioTiming(
+            audio_feature_dimension=pretrained.encoder_kwargs["embed_dim"],
+            audio_native_frame_rate=25,
+            audio_frame_repeat=2,
+            audio_tokens_per_step=5,
+            audio_history_steps=0,
+            audio_token_parts=1,
+        )
+
+
+class AudioMosaicConfig(FrozenModel):
+    kind: Literal["audiomosaic"] = "audiomosaic"
+    model_id: str = "hanxunh/AudioMosaic-vit-b16-pretrained"
+    frequency_tokens: bool = False
+
+    def timing(self, directory: Path, steps: StepTiming) -> AudioTiming:
+        #checking via hf
+        architecture = AudioMosaicArchitecture.model_validate_json((directory / "config.json").read_text())
+
+        assert steps.video_rate % steps.video_frames_per_step == 0
+        native_frame_rate = steps.video_rate // steps.video_frames_per_step
+        capacity_steps = (
+            architecture.capacity_samples * native_frame_rate // architecture.audio_preprocessing.sample_rate
+        )
+        frequency_patches = architecture.spec_size[1] // architecture.patch_size[1]
+        return AudioTiming(
+            audio_feature_dimension=architecture.embed_dim * frequency_patches,
+            audio_native_frame_rate=native_frame_rate,
+            audio_frame_repeat=1,
+            audio_tokens_per_step=1,
+            audio_history_steps=capacity_steps - steps.context_frames // steps.video_frames_per_step,
+            audio_token_parts=frequency_patches if self.frequency_tokens else 1,
+        )
+
+
+type VideoEncoderSettings = Dinov3Config
+type AudioEncoderSettings = Annotated[DashengConfig | AudioMosaicConfig, Field(discriminator="kind")]
+
+
+class FrozenEncoderConfig(AudioTiming):
+    video: VideoEncoderSettings
+    audio: AudioEncoderSettings
+    audio_model_directory: Path
     image_size: PositiveInt = 128
     video_rate: PositiveInt = 30
     sample_rate: PositiveInt = 16000
     video_frames_per_step: PositiveInt = 3
     context_frames: PositiveInt = 60
-    audio_encoder: AudioEncoderName = "dasheng"
-    audio_model_directory: Path
-    audio_feature_dimension: PositiveInt = 1536
-    audio_native_frame_rate: PositiveInt = 25
-    audio_frame_repeat: PositiveInt = 2
-    audio_tokens_per_step: PositiveInt = 5
-    audio_history_steps: NonNegativeInt = 0
-    audio_token_parts: PositiveInt = 1
     bfloat16: bool = False
     spatial_sample_rate: PositiveInt | None = None
     spatial_mel_bands: PositiveInt = 64
@@ -102,9 +150,45 @@ class FrozenEncoderConfig(FrozenModel):
         return self.audio_history_steps * self.step_samples
 
     @property
+    def video_patches(self) -> int:
+        return (self.image_size // self.video.patch_size) ** 2
+
+    @property
     def video_latent_dimension(self) -> int:
-        return self.video_feature_dimension * self.video_frames_per_step
+        return self.video.feature_dimension * self.video_frames_per_step
 
     @property
     def audio_latent_dimension(self) -> int:
         return self.audio_feature_dimension * self.audio_channels * self.audio_tokens_per_step
+
+
+class EncoderConfig(FrozenModel):
+    video: VideoEncoderSettings = Field(default_factory=Dinov3Config)
+    audio: AudioEncoderSettings = Field(default_factory=DashengConfig)
+    image_size: PositiveInt = 256
+    video_rate: PositiveInt = 10
+    video_frames_per_step: PositiveInt = 1
+    context_frames: PositiveInt = 12
+    total_frames: PositiveInt = 40
+    spatial_audio: bool = False
+
+    def resolve(self, bfloat16: bool) -> FrozenEncoderConfig:
+        directory = Path(snapshot_download(self.audio.model_id))
+        steps = StepTiming(
+            video_rate=self.video_rate,
+            video_frames_per_step=self.video_frames_per_step,
+            context_frames=self.context_frames,
+        )
+        return FrozenEncoderConfig(
+            **self.audio.timing(directory, steps).model_dump(),
+            video=self.video,
+            audio=self.audio,
+            audio_model_directory=directory,
+            image_size=self.image_size,
+            video_rate=self.video_rate,
+            video_frames_per_step=self.video_frames_per_step,
+            context_frames=self.context_frames,
+            bfloat16=bfloat16,
+            spatial_sample_rate=48000 if self.spatial_audio else None,
+            ambisonic=self.spatial_audio,
+        )

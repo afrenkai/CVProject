@@ -122,7 +122,7 @@ def build_objective(
     predictor = AudioVisualFlowPredictor(
         encoder.video_latent_dimension, encoder.audio_latent_dimension, audio_tokens, model
     )
-    patches = (encoder.image_size // 16) ** 2
+    patches = encoder.video_patches
     target_steps = (total_frames - encoder.context_frames) // encoder.video_frames_per_step
     data_dimension = target_steps * (patches * encoder.video_latent_dimension + encoder.audio_latent_dimension)
     transport = TransportConfig(

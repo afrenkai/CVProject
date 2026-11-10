@@ -8,11 +8,9 @@ data:
   workers: 10
 
 encoder:
-  video_model: vit_base_patch16_dinov3.lvd1689m
-  video_feature_dimension: 768
-  video_layers: [3, 6, 9, 12]
+  video: {kind: dinov3, model_id: vit_base_patch16_dinov3.lvd1689m, feature_dimension: 768, layers: [3, 6, 9, 12]}
+  audio: {kind: dasheng, model_id: mispeech/dasheng-base}
   image_size: 256
-  audio_model: mispeech/dasheng-base
   video_rate: 10
   video_frames_per_step: 1
   context_frames: 12

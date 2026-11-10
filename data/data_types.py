@@ -20,7 +20,7 @@ class DatasetConfig(FrozenModel):
     # mainly for debugging but I guess we could make a huge synth dataset
     synthetic: bool = False
     # better to do Path type here???
-    latent_cache: str
+    latent_cache: str | None = None
     clips: PositiveInt
     validation_clips: NonNegativeInt = 0
     seed: NonNegativeInt = 0

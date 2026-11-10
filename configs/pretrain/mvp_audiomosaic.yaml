@@ -4,9 +4,7 @@ data:
   latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_audiomosaic
 
 encoder:
-  audio_encoder: audiomosaic
-  audio_model: hanxunh/AudioMosaic-vit-b16-pretrained
-  audio_frequency_tokens: true
+  audio: {kind: audiomosaic, model_id: hanxunh/AudioMosaic-vit-b16-pretrained, frequency_tokens: true}
 
 trainer:
   output: ${oc.env:SPEAKUP_RUNS}/mvp_audiomosaic_frequency
