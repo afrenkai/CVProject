@@ -11,4 +11,4 @@
 #SBATCH --output=%x_%A_%a.log
 set -e
 source slurm/environment.sh
-uv run --extra "$SPEAKUP_EXTRA" python -m data.latent_cache "${CONFIG:-configs/pretrain/mvp_large_actions.yaml}" --start $((SLURM_ARRAY_TASK_ID * 25000)) --count 25000
+uv run --extra "$SPEAKUP_EXTRA" python -m data.latent_cache "${CONFIG:-configs/pretrain/mvp_large_actions.yaml}" --start $((SLURM_ARRAY_TASK_ID * ${COUNT:-25000})) --count "${COUNT:-25000}"

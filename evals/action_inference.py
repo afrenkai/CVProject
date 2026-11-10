@@ -6,7 +6,7 @@ from torch import Tensor
 from data.control_types import ControlLayout
 from data.latent_cache import CachedClipDataset
 from evals.eval_types import ActionSearchConfig, CostModality
-from evals.samples import save_summary
+from evals.samples import resolve_checkpoint, save_summary
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 from transport.solvers import solve_flow_map
@@ -202,7 +202,7 @@ def control_scores(
 @torch.no_grad()
 def main(run: Path, checkpoint: Path, cache: Path, settings: ActionSearchConfig) -> None:
     config = PretrainConfig.model_validate_json((run / "config.json").read_text())
-    device = torch.device("cuda")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     bfloat16 = config.trainer.precision == "bf16"
     encoder_config = config.encoder.resolve(bfloat16=bfloat16)
     objective = restore_objective(config, encoder_config, checkpoint_weights(checkpoint, True), device)
@@ -247,9 +247,9 @@ def main(run: Path, checkpoint: Path, cache: Path, settings: ActionSearchConfig)
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("run", type=Path)
-    parser.add_argument("checkpoint", type=Path)
+    parser.add_argument("checkpoint")
     parser.add_argument("cache", type=Path)
     parser.add_argument("overrides", nargs="*")
     args = parser.parse_args()
     settings = ActionSearchConfig.model_validate(dict(override.split("=", 1) for override in args.overrides))
-    main(args.run, args.checkpoint, args.cache, settings)
+    main(args.run, resolve_checkpoint(args.run, args.checkpoint), args.cache, settings)

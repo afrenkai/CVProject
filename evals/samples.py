@@ -3,6 +3,7 @@ from pathlib import Path
 import torch
 from einops import rearrange, repeat
 from torch import Tensor
+from transformers.trainer_utils import get_last_checkpoint
 from training.objective import WorldModelObjective
 from transport.solvers import solve_flow_map
 
@@ -40,6 +41,14 @@ def rollout(
         "predicted_video": objective.transport.video_frames(sampled_video, context_video),
         "predicted_audio": objective.scored_audio(sampled_audio),
     }
+
+
+def resolve_checkpoint(run: Path, checkpoint: str) -> Path:
+    if checkpoint != "latest":
+        return Path(checkpoint)
+    latest = get_last_checkpoint(str(run))
+    assert latest is not None, f"no checkpoint in {run}"
+    return Path(latest)
 
 
 def save_summary(summary: dict[str, object], checkpoint: Path, evaluation: str, cache: Path) -> None:

@@ -67,7 +67,10 @@ def shard_examples(name: str, source: SourceConfig, samples: str, keys: list[str
 
 def source_examples(name: str, source: SourceConfig, split: str) -> list[AVExample]:
     with fsspec.open(source.splits.format(split=split), "rt") as handle:
-        keys = handle.read().split()
+        return key_examples(name, source, handle.read().split())
+
+
+def key_examples(name: str, source: SourceConfig, keys: list[str]) -> list[AVExample]:
     if source.samples is not None:
         return shard_examples(name, source, source.samples, keys)
     assert source.media is not None, f"{name} needs either a media template or a samples index"
@@ -113,7 +116,9 @@ class AVDataset(Dataset, ABC):
         return VideoDecoder(media, seek_mode="approximate", transforms=[Resize((size, size))])
 
     @abstractmethod
-    def sample(self, example_index: int, generator: torch.Generator) -> dict[str, Tensor] | None: ...
+    def sample(
+        self, example_index: int, generator: torch.Generator, start: float | None = None
+    ) -> dict[str, Tensor] | None: ...
 
     def __getitem__(self, index: int) -> dict[str, Tensor]:
         generator = torch.Generator().manual_seed(self.config.seed * 1_000_067 + index)
@@ -171,7 +176,9 @@ class WorldModelDataset(AVDataset):
         assert waveform.shape[0] == 2
         return torch.cat((waveform, waveform.new_zeros(self.waveform_channels - 2, waveform.shape[-1])))
 
-    def read_clip(self, example_index: int, generator: torch.Generator) -> tuple[Tensor, Tensor, float] | None:
+    def read_clip(
+        self, example_index: int, generator: torch.Generator, start: float | None = None
+    ) -> tuple[Tensor, Tensor, float] | None:
         try:
             media = self.media(example_index)
             video = self.video_decoder(media, self.image_size)
@@ -180,7 +187,10 @@ class WorldModelDataset(AVDataset):
             available = end - begin
             if available < self.duration + 0.2:
                 return None
-            start = begin + 0.05 + float(torch.rand(1, generator=generator)) * (available - self.duration - 0.15)
+            if start is None:
+                start = begin + 0.05 + float(torch.rand(1, generator=generator)) * (available - self.duration - 0.15)
+            if start < begin or start + self.duration > end:
+                return None
             timestamps = [start + (frame + 1) / self.video_rate for frame in range(self.total_frames)]
             frames = video.get_frames_played_at(seconds=timestamps).data.float() / 255
             waveform = audio.get_samples_played_in_range(start_seconds=start, stop_seconds=start + self.duration).data
@@ -220,8 +230,10 @@ class WorldModelDataset(AVDataset):
         except (AssertionError, OSError, ValueError):
             return None
 
-    def sample(self, example_index: int, generator: torch.Generator) -> dict[str, Tensor] | None:
-        clip = self.read_clip(example_index, generator)
+    def sample(
+        self, example_index: int, generator: torch.Generator, start: float | None = None
+    ) -> dict[str, Tensor] | None:
+        clip = self.read_clip(example_index, generator, start)
         if clip is None:
             return None
         frames, waveform, start = clip
@@ -242,9 +254,42 @@ class WorldModelDataset(AVDataset):
         }
 
 
+class WindowDataset(WorldModelDataset):
+    def __init__(
+        self,
+        examples: list[AVExample],
+        starts: list[float],
+        config: DatasetConfig,
+        encoder: FrozenEncoderConfig,
+        total_frames: int,
+        layout: ControlLayout,
+    ) -> None:
+        super().__init__(examples, None, config, encoder, total_frames, layout)
+        assert len(starts) == len(examples)
+        self.starts = starts
+
+    def __len__(self) -> int:
+        return len(self.starts)
+
+    def readable(self) -> list[bool]:
+        generator = torch.Generator()
+        return [self.sample(index, generator, start) is not None for index, start in enumerate(self.starts)]
+
+    def __getitem__(self, index: int) -> dict[str, Tensor]:
+        generator = torch.Generator().manual_seed(self.config.seed * 1_000_067 + index)
+        sample = self.sample(index, generator, self.starts[index])
+        if sample is None:
+            raise RuntimeError(
+                f"Window {index} of {self.media_paths[index]} at {self.starts[index]:.2f}s is unreadable"
+            )
+        return sample
+
+
 # this is more for CPU sanity checks, but we can also use it for "smoke tests" on GPU I guess
 class SyntheticWorldModelDataset(WorldModelDataset):
-    def read_clip(self, example_index: int, generator: torch.Generator) -> tuple[Tensor, Tensor, float] | None:
+    def read_clip(
+        self, example_index: int, generator: torch.Generator, start: float | None = None
+    ) -> tuple[Tensor, Tensor, float] | None:
         return (
             torch.rand(self.total_frames, 3, self.image_size, self.image_size, generator=generator),
             self.waveform_layout(0.1 * torch.randn(2, self.history_samples + self.samples, generator=generator)),

@@ -1,3 +1,4 @@
+import numpy as np
 from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
 from configs.config_types import FrozenModel
 from data.control_types import ControlLayout, Opencs2InputMap
@@ -41,3 +42,32 @@ class ActionClipConfig(FrozenModel):
     maximum_screen_gap: PositiveFloat = 0.15
     control_layout: ControlLayout = Field(default_factory=ControlLayout)
     opencs2_inputs: Opencs2InputMap = Field(default_factory=Opencs2InputMap)
+
+
+class CueConfig(FrozenModel):
+    tick_rate: PositiveInt = 64
+    context_seconds: PositiveFloat = 3.6
+    target_seconds: PositiveFloat = 2.8
+    onset_into_target: NonNegativeFloat = 1.0
+    view_half_yaw: PositiveFloat = 53.0
+    view_half_pitch: PositiveFloat = 30.0
+    aim_degrees: PositiveFloat = 8.0
+    engage_distance: PositiveFloat = 3000.0
+    gunshot_distance: PositiveFloat = 3500.0
+    footstep_distance: PositiveFloat = 1200.0
+    running_speed: PositiveFloat = 150.0
+    eye_height: PositiveFloat = 64.0
+    quiet_gap_seconds: PositiveFloat = 4.0
+    none_per_pov: PositiveInt = 2
+    seed: int = 0
+
+
+class RoundState(FrozenModel, arbitrary_types_allowed=True):
+    ticks: np.ndarray
+    position: np.ndarray
+    yaw: np.ndarray
+    pitch: np.ndarray
+    team: np.ndarray
+    alive: np.ndarray
+    firing: np.ndarray
+    running: np.ndarray

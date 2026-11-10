@@ -5,7 +5,7 @@ from einops import rearrange, repeat
 from torch import Tensor
 from torch.utils.data import DataLoader, Subset
 from data.latent_cache import CachedClipDataset
-from evals.samples import ensemble_errors, rollout, save_summary
+from evals.samples import ensemble_errors, resolve_checkpoint, rollout, save_summary
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 
@@ -102,7 +102,7 @@ def main(
     integration_steps: int,
 ) -> None:
     config = PretrainConfig.model_validate_json((run / "config.json").read_text())
-    device = torch.device("cuda")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     bfloat16 = config.trainer.precision == "bf16"
     encoder_config = config.encoder.resolve(bfloat16=bfloat16)
     objective = restore_objective(config, encoder_config, checkpoint_weights(checkpoint, True), device)
@@ -146,7 +146,7 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("run", type=Path)
-    parser.add_argument("checkpoint", type=Path)
+    parser.add_argument("checkpoint")
     parser.add_argument("cache", type=Path)
     parser.add_argument("--clips", type=int, default=128)
     parser.add_argument("--batch-size", type=int, default=4)
@@ -156,7 +156,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(
         args.run,
-        args.checkpoint,
+        resolve_checkpoint(args.run, args.checkpoint),
         args.cache,
         args.clips,
         args.batch_size,
