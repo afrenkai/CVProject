@@ -1,11 +1,10 @@
 inherit: [peav_base_image.yaml]
 
 data:
-  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_peav_base_av_v1
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_peav_base_av
 
 encoder:
-  audio_encoder: pe_av
-  audio_model: facebook/pe-av-base
+  audio: {kind: pe_av, model_id: facebook/pe-av-base}
 
 trainer:
-  output: ${oc.env:SPEAKUP_RUNS}/mvp_peav_base_av_v1
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_peav_base_av

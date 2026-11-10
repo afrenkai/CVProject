@@ -1,22 +1,27 @@
 data:
   sources:
     audioset:
-      root: /scratch/afrenk/Project-local/datasets/av_benchmarks_v1/audioset/official_av
+      root: /archive/afrenk/media_360p/audioset
     kinetics400:
-      root: /scratch/afrenk/Project-local/artifacts/stage1_frozen_large_20261022/overfit_runtime/data/stage1_trainval_v1/kinetics
+      root: /archive/afrenk/media_360p/kinetics400
     sphere360:
-      root: /scratch/afrenk/speakup/data/sphere360
+      # due to bug with a couple files having av1 encoding. 
+      # used libdav1d to convert to .mkv since ffmpeg on cluster didn't
+      # have it shipped. 
+      # pyav has it shipped though
+      root: /archive/afrenk/media_360p/sphere360
+      media: ${.root}/video/{key}.mkv
     d2e:
-      root: /archive/afrenk/avwm_20261022/d2e
-      audio_root: /scratch/afrenk/speakup/d2e_audio
+      root: /archive/afrenk/media_360p/d2e
+      audio_root: ${.root}/audio
     rainbow_six:
-      root: /archive/afrenk/avwm_20261022/d2e
-      audio_root: /scratch/afrenk/speakup/d2e_audio
-    opencs2:
-      root: /scratch/afrenk/speakup/opencs2/rounds
+      root: /archive/afrenk/media_360p/rainbow_six
+      audio_root: ${.root}/audio
     fairplay:
-      root: /scratch/afrenk/Project-local/artifacts/stage1_frozen_large_20261022/overfit_runtime/data/stage1_trainval_v1/fairplay
+      root: /archive/afrenk/media_360p/fairplay
     tau_av:
-      root: /scratch/afrenk/Project-local/artifacts/stage1_frozen_large_20261022/overfit_runtime/data/stage1_trainval_v1/tau
+      root: /archive/afrenk/media_360p/tau_av
     greatest_hits:
-      root: /scratch/afrenk/speakup/data/greatest_hits/vis-data
+      root: /archive/afrenk/media_360p/greatest_hits
+    opencs2:
+      root: /archive/afrenk/media_360p/opencs2

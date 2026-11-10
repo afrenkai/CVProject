@@ -1,18 +1,28 @@
 import argparse
-import json
 from pathlib import Path
 import torch
 from einops import rearrange, repeat
 from torch import Tensor
 from torch.utils.data import DataLoader, Subset
-from data.latent_cache import CachedWindowDataset
+from data.latent_cache import CachedClipDataset
 from evals.samples import ensemble_errors, rollout
-from models.joint_encoder import build_encoder_config
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 
 
 def action_variants(batch: dict[str, Tensor]) -> dict[str, dict[str, Tensor]]:
+    """
+    in minibatch of actions
+    we want to make sure that several ablations can be done.
+
+    roll flips tensor along the 1st dim.
+
+    Example:
+        (assuming )
+    reg_batch_arange = tensor([[1, 2], [3, 4], [5, 6], [7, 8]])
+    reg_batch_rolled = tensor([[8,1], [2,3], [4,5], [6,7]])
+
+    """
     shuffled = torch.roll(torch.arange(batch["actions"].shape[0], device=batch["actions"].device), 1)
     return {
         "true": batch,
@@ -50,24 +60,22 @@ def retrieval(
     integration_steps: int,
     seed: int,
 ) -> dict[str, Tensor]:
-    windows = batch["video"].shape[0]
+    clips = batch["video"].shape[0]
     expanded = {
-        name: repeat(batch[name], "window ... -> (member window) ...", member=members) for name in ("video", "audio")
+        name: repeat(batch[name], "clip ... -> (member clip) ...", member=members) for name in ("video", "audio")
     }
     final_costs = []
     trajectory_costs = []
     for shift in range(candidates):
-        order = torch.roll(torch.arange(windows, device=batch["video"].device), shift)
+        order = torch.roll(torch.arange(clips, device=batch["video"].device), shift)
         candidate = {
             **expanded,
-            "actions": repeat(batch["actions"][order], "window ... -> (member window) ...", member=members),
-            "action_present": torch.ones(members * windows, dtype=torch.long, device=batch["video"].device),
+            "actions": repeat(batch["actions"][order], "clip ... -> (member clip) ...", member=members),
+            "action_present": torch.ones(members * clips, dtype=torch.long, device=batch["video"].device),
         }
         result = rollout(objective, candidate, integration_steps, seed)
-        predicted = rearrange(
-            result["predicted_video"].float(), "(member window) ... -> member window ...", member=members
-        )
-        goal = result["true_video"][:windows].float()
+        predicted = rearrange(result["predicted_video"].float(), "(member clip) ... -> member clip ...", member=members)
+        goal = result["true_video"][:clips].float()
         final_costs.append((predicted[:, :, -1] - goal[:, -1]).square().mean(dim=(0, 2, 3)))
         trajectory_costs.append((predicted - goal).square().mean(dim=(0, 2, 3, 4)))
     costs = {"final": torch.stack(final_costs, dim=1), "trajectory": torch.stack(trajectory_costs, dim=1)}
@@ -84,20 +92,20 @@ def main(
     run: Path,
     checkpoint: Path,
     cache: Path,
-    windows: int,
+    clips: int,
     batch_size: int,
     members: int,
     candidates: int,
     integration_steps: int,
 ) -> None:
-    config = PretrainConfig.model_validate_json((run / "pretrain_config.json").read_text())
+    config = PretrainConfig.model_validate_json((run / "config.json").read_text())
     device = torch.device("cuda")
     bfloat16 = config.trainer.precision == "bf16"
-    encoder_config = build_encoder_config(config.encoder, bfloat16=bfloat16)
+    encoder_config = config.encoder.resolve(bfloat16=bfloat16)
     objective = restore_objective(config, encoder_config, checkpoint_weights(checkpoint, True), device)
-    dataset = CachedWindowDataset(cache)
-    present = [index for index in range(len(dataset)) if int(dataset[index]["action_present"]) == 1][:windows]
-    assert len(present) >= batch_size, f"only {len(present)} windows with actions in {cache}"
+    dataset = CachedClipDataset(cache)
+    present = [index for index in range(len(dataset)) if int(dataset[index]["action_present"]) == 1][:clips]
+    assert len(present) >= batch_size, f"only {len(present)} clips with actions in {cache}"
     collected: dict[str, list[Tensor]] = {}
     for index, batch in enumerate(DataLoader(Subset(dataset, present), batch_size=batch_size, drop_last=True)):
         steps = config.encoder.total_frames // encoder_config.video_frames_per_step
@@ -126,13 +134,11 @@ def main(
                 torch.tensor(summary[f"{name}/{modality}_crps"]) / true_crps - 1.0
             ).tolist()
 
+    # TODO: handle logging smarter
     summary["retrieval/chance_top1"] = 1.0 / candidates
-    output = checkpoint / "action_eval.json"
-    output.write_text(json.dumps(summary, indent=2))
     for name, value in summary.items():
         shown = value if isinstance(value, float) else [round(entry, 4) for entry in value[:: max(1, len(value) // 7)]]
         print(f"{name}: {shown}", flush=True)
-    print(f"saved {output}", flush=True)
 
 
 if __name__ == "__main__":
@@ -140,19 +146,19 @@ if __name__ == "__main__":
     parser.add_argument("run", type=Path)
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("cache", type=Path)
-    parser.add_argument("--windows", type=int, default=128)
+    parser.add_argument("--clips", type=int, default=128)
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--members", type=int, default=4)
     parser.add_argument("--candidates", type=int, default=8)
     parser.add_argument("--integration-steps", type=int, default=8)
-    command = parser.parse_args()
+    args = parser.parse_args()
     main(
-        command.run,
-        command.checkpoint,
-        command.cache,
-        command.windows,
-        command.batch_size,
-        command.members,
-        command.candidates,
-        command.integration_steps,
+        args.run,
+        args.checkpoint,
+        args.cache,
+        args.clips,
+        args.batch_size,
+        args.members,
+        args.candidates,
+        args.integration_steps,
     )

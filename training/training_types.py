@@ -5,7 +5,7 @@ from data.data_types import DatasetConfig
 from models.encoder_types import EncoderConfig
 from models.model_types import WorldModelConfig
 
-type OptimizerName = Literal["muon", "gns_muon", "gns_muon_ampere", "dion3"]
+type OptimizerName = Literal["muon", "gns_muon", "gns_muon_ampere", "dion3", "adamw"]
 
 
 class SlimLsdConfig(FrozenModel):
@@ -32,7 +32,8 @@ class OptimizerConfig(FrozenModel):
     weight_decay: NonNegativeFloat = 0.1
     warmup_steps: NonNegativeInt = 2000
     final_learning_rate_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
-    gradient_clip: PositiveFloat = 1.0
+    gradient_clip: NonNegativeFloat = 1.0
+    betas: tuple[PositiveFloat, PositiveFloat] = (0.9, 0.999)
 
 
 class TrainerConfig(FrozenModel):
@@ -44,14 +45,12 @@ class TrainerConfig(FrozenModel):
     device: Literal["cuda", "cpu"] = "cuda"
     activation_checkpointing: bool = False
     ema_decay: float = Field(default=0.999, ge=0.0, lt=1.0)
-    normalizer_windows: PositiveInt = 1024
+    normalizer_clips: PositiveInt = 1024
     log_every: PositiveInt = 25
     eval_steps: PositiveInt = 500
     checkpoint_steps: PositiveInt = 250
     checkpoint_limit: PositiveInt = 2
     max_steps: NonNegativeInt = 0
-    stop_at: NonNegativeFloat = 0.0
-    stop_file: str | None = None
     initialize_from: str | None = None
     wandb_project: str = "speakup-stage1"
     wandb_mode: Literal["online", "offline", "disabled"] = "offline"

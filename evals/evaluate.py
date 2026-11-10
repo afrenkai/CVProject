@@ -4,9 +4,8 @@ from pathlib import Path
 import torch
 import wandb
 from torch.utils.data import DataLoader, Dataset, default_collate
-from data.latent_cache import CachedWindowDataset
+from data.latent_cache import CachedClipDataset
 from evals.samples import ensemble_errors, ensemble_metrics
-from models.joint_encoder import build_encoder_config
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 
@@ -19,6 +18,8 @@ def flow_losses(
     workers: int,
     device: torch.device,
 ) -> dict[str, float]:
+    # TODO: still don'y like this ugly string mangling since we pass obj as dict keys
+    # not sure how to fix best but when have time will fix surely...
     parts = ("video_flow_loss", "audio_flow_loss")
     totals = {f"{label}/{name}/{part}": 0.0 for label in objectives for part in parts}
     batches = 0
@@ -41,19 +42,20 @@ def flow_losses(
 
 @torch.no_grad()
 def main(
-    run: Path, checkpoint: Path, windows: int, batch_size: int, workers: int, spread_windows: int, members: int
+    run: Path, checkpoint: Path, clips: int, batch_size: int, workers: int, spread_clips: int, members: int
 ) -> None:
-    config = PretrainConfig.model_validate_json((run / "pretrain_config.json").read_text())
+    config = PretrainConfig.model_validate_json((run / "config.json").read_text())
     device = torch.device("cuda")
     step = int(checkpoint.name.removeprefix("checkpoint-"))
     bfloat16 = config.trainer.precision == "bf16"
-    encoder_config = build_encoder_config(config.encoder, bfloat16=bfloat16)
+    encoder_config = config.encoder.resolve(bfloat16=bfloat16)
     objectives = {
         label: restore_objective(config, encoder_config, checkpoint_weights(checkpoint, label == "ema"), device)
         for label in ("raw", "ema")
     }
+    assert config.data.latent_cache is not None
     validation = {
-        directory.name: CachedWindowDataset(directory, windows)
+        directory.name: CachedClipDataset(directory, clips)
         for directory in sorted((Path(config.data.latent_cache) / "validation").iterdir())
     }
     metrics: dict[str, float] = {"checkpoint_step": step}
@@ -63,7 +65,7 @@ def main(
         print(f"step {step} {name}: " + "  ".join(f"{key} {value:.4f}" for key, value in losses.items()), flush=True)
 
     for name, dataset in validation.items():
-        count = min(spread_windows, len(dataset))
+        count = min(spread_clips, len(dataset))
         chunks = []
         for start in range(0, count, 4):
             chunk = default_collate([dataset[index] for index in range(start, min(start + 4, count))])
@@ -96,25 +98,24 @@ def main(
     wandb.define_metric("*", step_metric="checkpoint_step")
     wandb.log(metrics)
     wandb.finish()
-    (checkpoint / "evaluated").touch()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("run", type=Path)
     parser.add_argument("checkpoint", type=Path)
-    parser.add_argument("--windows", type=int, default=256)
+    parser.add_argument("--clips", type=int, default=256)
     parser.add_argument("--batch-size", type=int, default=8)
-    parser.add_argument("--spread-windows", type=int, default=16)
+    parser.add_argument("--spread-clips", type=int, default=16)
     parser.add_argument("--members", type=int, default=8)
     parser.add_argument("--workers", type=int, default=int(os.environ.get("SLURM_CPUS_PER_TASK", "8")) - 2)
-    command = parser.parse_args()
+    args = parser.parse_args()
     main(
-        command.run,
-        command.checkpoint,
-        command.windows,
-        command.batch_size,
-        command.workers,
-        command.spread_windows,
-        command.members,
+        args.run,
+        args.checkpoint,
+        args.clips,
+        args.batch_size,
+        args.workers,
+        args.spread_clips,
+        args.members,
     )

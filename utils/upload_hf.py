@@ -1,14 +1,14 @@
 import argparse
-import json
 from pathlib import Path
 from huggingface_hub import HfApi
 from transformers.trainer_utils import get_last_checkpoint
 from training.objective import checkpoint_weights
+from training.training_types import PretrainConfig
 from utils.hub import SpeakUp
 
 
 def load_run(run: Path, use_ema: bool) -> SpeakUp:
-    settings = json.loads((run / "pretrain_config.json").read_text())
+    settings = PretrainConfig.model_validate_json((run / "config.json").read_text()).model_dump(mode="json")
     checkpoint = get_last_checkpoint(str(run))
     assert checkpoint is not None, f"No checkpoint-* directory in {run}"
     model = SpeakUp({name: settings[name] for name in ("encoder", "model", "objective")})
@@ -39,5 +39,5 @@ if __name__ == "__main__":
     parser.add_argument("repo_id")
     parser.add_argument("--push", action="store_true")
     parser.add_argument("--raw", action="store_true")
-    command = parser.parse_args()
-    main(command.run, command.repo_id, command.push, not command.raw)
+    args = parser.parse_args()
+    main(args.run, args.repo_id, args.push, not args.raw)

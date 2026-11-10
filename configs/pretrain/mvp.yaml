@@ -1,18 +1,16 @@
 inherit: [../data/mix.yaml]
 
 data:
-  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_v1
-  windows: 200000
-  validation_windows: 128
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp
+  clips: 200000
+  validation_clips: 128
   mirror_probability: 0.5
   workers: 10
 
 encoder:
-  video_model: vit_base_patch16_dinov3.lvd1689m
-  video_feature_dimension: 768
-  video_layers: [3, 6, 9, 12]
+  video: {kind: dinov3, model_id: vit_base_patch16_dinov3.lvd1689m, feature_dimension: 768, layers: [3, 6, 9, 12]}
+  audio: {kind: dasheng, model_id: mispeech/dasheng-base}
   image_size: 256
-  audio_model: mispeech/dasheng-base
   video_rate: 10
   video_frames_per_step: 1
   context_frames: 12
@@ -36,7 +34,7 @@ optimizer:
   warmup_steps: 1000
 
 trainer:
-  output: ${oc.env:SPEAKUP_RUNS}/mvp_v1
+  output: ${oc.env:SPEAKUP_RUNS}/mvp
   epochs: 3
   batch_size: 32
   gradient_accumulation: 2

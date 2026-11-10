@@ -3,17 +3,14 @@ inherit: [mvp.yaml]
 data:
   synthetic: true
   latent_cache: outputs/cpu_cache
-  validation_windows: 4
-  windows: 400
+  validation_clips: 4
+  clips: 400
   mirror_probability: 0.0
   workers: 0
 
 encoder:
-  video_model: vit_small_patch16_dinov3.lvd1689m
-  video_feature_dimension: 384
-  video_layers: [3, 6, 9, 12]
+  video: {kind: dinov3, model_id: vit_small_patch16_dinov3.lvd1689m, feature_dimension: 384, layers: [3, 6, 9, 12]}
   image_size: 112
-  audio_model: mispeech/dasheng-base
   context_frames: 4
   total_frames: 12
 
@@ -36,7 +33,7 @@ trainer:
   precision: fp32
   device: cpu
   ema_decay: 0.99
-  normalizer_windows: 2
+  normalizer_clips: 2
   log_every: 10
   checkpoint_steps: 100
   max_steps: 200

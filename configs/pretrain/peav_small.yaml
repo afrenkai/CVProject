@@ -1,11 +1,10 @@
 inherit: [mvp.yaml]
 
 data:
-  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_peav_small_v1
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_peav_small
 
 encoder:
-  audio_encoder: pe_av
-  audio_model: facebook/pe-av-small
+  audio: {kind: pe_av, model_id: facebook/pe-av-small}
 
 trainer:
-  output: ${oc.env:SPEAKUP_RUNS}/mvp_peav_small_v1
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_peav_small
