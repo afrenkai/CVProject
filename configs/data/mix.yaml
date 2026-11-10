@@ -12,12 +12,12 @@ inherit:
 
 data:
   sources:
-    audioset: {weight: 0.20}
-    kinetics400: {weight: 0.15}
+    audioset: {weight: 0.15}
+    kinetics400: {weight: 0.10}
     sphere360: {weight: 0.10}
-    d2e: {weight: 0.18}
+    d2e: {weight: 0.15}
     rainbow_six: {weight: 0.0}
-    opencs2: {weight: 0.22}
+    opencs2: {weight: 0.30}
     fairplay: {weight: 0.05}
     tau_av: {weight: 0.05}
-    greatest_hits: {weight: 0.05}
+    greatest_hits: {weight: 0.10}

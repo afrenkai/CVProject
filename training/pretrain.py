@@ -171,7 +171,6 @@ def main(config: PretrainConfig) -> None:
         optimizers=(optimizer, schedule),
         callbacks=callbacks,
         normalizer=objective.normalizer,
-        video_only=config.objective.mode == "video_only",
     )
     if rank == 0:
         print(

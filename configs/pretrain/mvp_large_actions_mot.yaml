@@ -1,0 +1,7 @@
+inherit: [mvp_large_actions.yaml]
+
+model:
+  mixture_of_transformers: true
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_mot

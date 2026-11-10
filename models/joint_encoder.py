@@ -49,7 +49,7 @@ class JointEncoder(nn.Module):
             ).to(device)
         )
         self.eval().requires_grad_(False)
-        #surely nothing goes wrong here
+        # surely nothing goes wrong here
         assert all(parameter.dtype == torch.float32 and not parameter.requires_grad for parameter in self.parameters())
 
     def semantic_waveform(self, waveform: Tensor) -> Tensor:

@@ -3,6 +3,7 @@ from pydantic import PositiveFloat, PositiveInt, model_validator
 from configs.config_types import FrozenModel
 
 type AttentionBackend = Literal["sdpa", "flex", "flex_flash"]
+type TokenLayout = tuple[int, int]
 
 
 class TransformerStageConfig(FrozenModel):
@@ -33,3 +34,14 @@ class WorldModelConfig(FrozenModel):
     backbone: TransformerStageConfig
     diffusion_head: TransformerStageConfig
     mlp_ratio: PositiveFloat = 4.0
+    mixture_of_transformers: bool = False
+
+    @model_validator(mode="after")
+    def validate_mixture(self) -> Self:
+        assert not self.mixture_of_transformers or self.spatial_grid is not None
+        return self
+
+    def token_layout(self, audio_tokens: AudioTokenConfig) -> TokenLayout | None:
+        if not self.mixture_of_transformers or self.spatial_grid is None:
+            return None
+        return (self.spatial_grid[0] * self.spatial_grid[1], audio_tokens.tokens_per_step)

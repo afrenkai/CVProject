@@ -2,12 +2,13 @@ from typing import Literal
 from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
 from configs.config_types import FrozenModel
 
-CostModality = Literal["video", "audio_video"]
+CostModality = Literal["video", "audio", "audio_video"]
 
 
 class ActionSearchConfig(FrozenModel):
     clips: PositiveInt = 64
     population: PositiveInt = 64
+    candidate_batch: PositiveInt = 16
     elites: PositiveInt = 8
     iterations: PositiveInt = 4
     chunk_steps: PositiveInt = 4

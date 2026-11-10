@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 import torch
 from einops import rearrange, repeat
 from torch import Tensor
@@ -13,10 +15,10 @@ def rollout(
     seed: int,
 ) -> dict[str, Tensor]:
     video = objective.normalizer.normalize_video(batch["video"].float())
-    audio = objective.normalizer.normalize_audio(batch["audio"].float())
+    audio = objective.prepare_audio(objective.normalizer.normalize_audio(batch["audio"].float()))
     context_steps = objective.context_steps
     conditioned = objective.encode_actions(batch["actions"], batch["action_present"])
-    context_video, context_audio = video[:, :context_steps], audio[:, :context_steps]
+    context_video, context_audio = objective.silence(video[:, :context_steps], audio[:, :context_steps])
     generator = torch.Generator(device=video.device).manual_seed(seed)
     noise_video = torch.randn(video[:, context_steps:].shape, generator=generator, device=video.device)
     noise_audio = torch.randn(audio[:, context_steps:].shape, generator=generator, device=video.device)
@@ -32,12 +34,18 @@ def rollout(
     )
     return {
         "context_video": context_video,
-        "context_audio": context_audio,
+        "context_audio": objective.scored_audio(audio[:, :context_steps]),
         "true_video": video[:, context_steps:],
-        "true_audio": audio[:, context_steps:],
+        "true_audio": objective.scored_audio(audio[:, context_steps:]),
         "predicted_video": objective.transport.video_frames(sampled_video, context_video),
-        "predicted_audio": sampled_audio,
+        "predicted_audio": objective.scored_audio(sampled_audio),
     }
+
+
+def save_summary(summary: dict[str, object], checkpoint: Path, evaluation: str, cache: Path) -> None:
+    path = checkpoint / f"{evaluation}_{cache.parent.parent.name}_{cache.name}.json"
+    path.write_text(json.dumps(summary, indent=1))
+    print(f"saved {path}", flush=True)
 
 
 def ensemble_crps(samples: Tensor, target: Tensor) -> Tensor:

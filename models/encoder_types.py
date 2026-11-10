@@ -46,7 +46,7 @@ class AudioMosaicArchitecture(BaseModel):
 
     @property
     def window_samples(self) -> int:
-        #TODO: make adaptive
+        # TODO: make adaptive
         return self.audio_preprocessing.sample_rate * 25 // 1000
 
     @property
@@ -87,7 +87,7 @@ class AudioMosaicConfig(FrozenModel):
     frequency_tokens: bool = False
 
     def timing(self, directory: Path, steps: StepTiming) -> AudioTiming:
-        #checking via hf
+        # checking via hf
         architecture = AudioMosaicArchitecture.model_validate_json((directory / "config.json").read_text())
 
         assert steps.video_rate % steps.video_frames_per_step == 0

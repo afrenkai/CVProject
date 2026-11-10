@@ -51,7 +51,13 @@ class AudioVisualDDTHead(nn.Module):
         self.action_projection = nn.Linear(config.action_dimension, hidden, bias=False)
         self.condition_projection = nn.Linear(config.backbone.hidden_dimension, hidden)
         self.blocks = nn.ModuleList(
-            AdaptiveAttentionBlock(hidden, config.diffusion_head.heads, config.mlp_ratio, config.attention_backend)
+            AdaptiveAttentionBlock(
+                hidden,
+                config.diffusion_head.heads,
+                config.mlp_ratio,
+                config.attention_backend,
+                config.token_layout(audio_tokens),
+            )
             for layer_index in range(config.diffusion_head.layers)
         )
         self.video_output = AdaptiveOutputProjection(hidden, video_dimension)

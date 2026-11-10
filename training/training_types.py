@@ -8,6 +8,9 @@ from models.model_types import WorldModelConfig
 type OptimizerName = Literal["muon", "gns_muon", "gns_muon_ampere", "dion3", "adamw"]
 
 
+type ObjectiveMode = Literal["audio_visual", "video_only", "audio_only"]
+
+
 class SlimLsdConfig(FrozenModel):
     start: NonNegativeInt = 0
     weight: NonNegativeFloat = 0.0
@@ -19,10 +22,12 @@ class SlimLsdConfig(FrozenModel):
 
 
 class ObjectiveConfig(FrozenModel):
-    mode: Literal["audio_visual", "video_only"] = "audio_visual"
+    mode: ObjectiveMode = "audio_visual"
     time_shift: PositiveFloat | None = None
     action_dropout: float = Field(default=0.0, ge=0.0, lt=1.0)
     context_noise: float = Field(default=0.0, ge=0.0, lt=1.0)
+    audio_step_pooling: bool = False
+    spatial_audio_target: bool = True
     slim_lsd: SlimLsdConfig = Field(default_factory=SlimLsdConfig)
 
 

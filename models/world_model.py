@@ -24,12 +24,8 @@ def time_embedding(h_dim: int) -> nn.Sequential:
     Returns:
         Timestep Embedding (Affine Fn (h,e), sigma, Affine Fn(e, h))
     """
-    #TODO: refactor all callers to pass emb_dim
-    return nn.Sequential(
-        nn.Linear(h_dim, h_dim * 4),
-        nn.SiLU(),
-        nn.Linear(h_dim * 4, h_dim)
-    )
+    # TODO: refactor all callers to pass emb_dim
+    return nn.Sequential(nn.Linear(h_dim, h_dim * 4), nn.SiLU(), nn.Linear(h_dim * 4, h_dim))
 
 
 class AudioVisualFlowPredictor(nn.Module):
@@ -54,7 +50,13 @@ class AudioVisualFlowPredictor(nn.Module):
         self.duration_embedding = time_embedding(hidden)
         self.context_noise_embedding = time_embedding(hidden)
         self.backbone_blocks = nn.ModuleList(
-            AdaptiveAttentionBlock(hidden, config.backbone.heads, config.mlp_ratio, config.attention_backend)
+            AdaptiveAttentionBlock(
+                hidden,
+                config.backbone.heads,
+                config.mlp_ratio,
+                config.attention_backend,
+                config.token_layout(audio_tokens),
+            )
             for layer_index in range(config.backbone.layers)
         )
         self.diffusion_head = AudioVisualDDTHead(video_dimension, audio_dimension, audio_tokens, config)
