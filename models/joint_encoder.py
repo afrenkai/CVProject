@@ -70,22 +70,28 @@ class JointEncoder(nn.Module):
         with torch.autocast(waveform.device.type, enabled=False):
             return resample(waveform.float().contiguous(), config.spatial_sample_rate, config.sample_rate)
 
+    def audio_window(self, waveform: Tensor, end: int) -> Tensor:
+        window = self.config.audio_window_steps
+        begin = 0 if window is None else max(0, end - window * self.config.step_samples)
+        return self.audio_encoder(self.semantic_waveform(waveform[:, :2, begin:end])).float()
+
     def audio_channels(self, waveform: Tensor) -> Tensor:
         config = self.config
         history = config.audio_history_samples
         clip = waveform[..., history:]
         assert clip.shape[-1] % config.step_samples == 0
-        context_tokens = config.context_frames // config.video_frames_per_step * config.audio_tokens_per_step
-        target_tokens = clip.shape[-1] // config.step_samples * config.audio_tokens_per_step - context_tokens
-        observed = self.audio_encoder(self.semantic_waveform(waveform[:, :2, : history + config.context_samples]))
-        complete = self.audio_encoder(self.semantic_waveform(waveform[:, :2])).float()
-        semantic = torch.cat(
-            (
-                observed.float()[..., observed.shape[-1] - context_tokens :],
-                complete[..., complete.shape[-1] - target_tokens :],
-            ),
-            dim=-1,
-        )
+        tokens = config.audio_tokens_per_step
+        context_end = history + config.context_samples
+        kept_tokens = (config.kept_audio_history_steps + config.context_frames // config.video_frames_per_step) * tokens
+        target_steps = clip.shape[-1] // config.step_samples - config.context_frames // config.video_frames_per_step
+        chunk = config.audio_target_chunk_steps or target_steps
+        observed = self.audio_window(waveform, context_end)
+        parts = [observed[..., observed.shape[-1] - kept_tokens :]]
+        for chunk_start in range(0, target_steps, chunk):
+            chunk_steps = min(chunk, target_steps - chunk_start)
+            encoded = self.audio_window(waveform, context_end + (chunk_start + chunk_steps) * config.step_samples)
+            parts.append(encoded[..., encoded.shape[-1] - chunk_steps * tokens :])
+        semantic = torch.cat(parts, dim=-1)
         channels = rearrange(
             semantic,
             "(batch channel) feature time -> batch channel feature time",
@@ -94,9 +100,13 @@ class JointEncoder(nn.Module):
         if self.spatial_features is None:
             return channels
         missing = config.waveform_channels - waveform.shape[1]
+        spatial_input = waveform[..., history - config.kept_audio_history_steps * config.step_samples :]
         spatial = self.spatial_features(
             torch.cat(
-                (clip.float(), clip.new_zeros(clip.shape[0], missing, clip.shape[-1]).float()),
+                (
+                    spatial_input.float(),
+                    spatial_input.new_zeros(spatial_input.shape[0], missing, spatial_input.shape[-1]).float(),
+                ),
                 dim=1,
             )
         )
@@ -151,8 +161,9 @@ class JointEncoder(nn.Module):
         waveform: Float[Tensor, "batch audio_channel sample"],
     ) -> tuple[
         Float[Tensor, "batch time patch video_feature"],
-        Float[Tensor, "batch time audio_feature"],
+        Float[Tensor, "batch audio_time audio_feature"],
     ]:
         video, audio = self.encode_video(frames), self.encode_audio(waveform)
-        assert video.shape[:2] == audio.shape[:2]
+        assert video.shape[0] == audio.shape[0]
+        assert audio.shape[1] == video.shape[1] + self.config.kept_audio_history_steps
         return video, audio

@@ -19,6 +19,7 @@ class AudioVisualTokenProjector(nn.Module):
         hidden_dimension: int,
         spatial_grid: tuple[int, int] | None,
         audio_tokens: AudioTokenConfig,
+        fusion_tokens: int = 0,
     ) -> None:
         super().__init__()
         self.audio_tokens = audio_tokens
@@ -28,6 +29,9 @@ class AudioVisualTokenProjector(nn.Module):
         self.modality_embedding = nn.Embedding(2, hidden_dimension)
         self.spatial_grid = spatial_grid
         self.hidden_dimension = hidden_dimension
+        self.fusion_queries = (
+            None if fusion_tokens == 0 else nn.Parameter(torch.randn(fusion_tokens, hidden_dimension) * 0.02)
+        )
         self.register_buffer(
             "spatial_positions",
             (
@@ -77,6 +81,25 @@ class AudioVisualTokenProjector(nn.Module):
             video_tokens = video_tokens + rearrange(
                 self.spatial_positions.to(video), "patch hidden -> 1 1 patch hidden"
             )
+        groups = [video_tokens, self.audio_grid(audio, frame_start, action_embeddings)]
+        if self.fusion_queries is not None:
+            groups.append(
+                rearrange(self.fusion_queries.to(video_tokens), "token hidden -> 1 1 token hidden")
+                + frame_positions
+                + action_positions
+            )
+        return rearrange(torch.cat(groups, dim=2), "batch time token hidden -> batch (time token) hidden")
+
+    @jaxtyped(typechecker=beartype)
+    def history_tokens(
+        self, audio: Float[Tensor, "batch time audio_feature"], frame_start: int
+    ) -> Float[Tensor, "batch token_time hidden"]:
+        actions = audio.new_zeros((*audio.shape[:2], self.hidden_dimension))
+        return rearrange(
+            self.audio_grid(audio, frame_start, actions), "batch time token hidden -> batch (time token) hidden"
+        )
+
+    def audio_grid(self, audio: Tensor, frame_start: int, action_embeddings: Tensor) -> Tensor:
         audio_frames = rearrange(
             audio,
             "batch time (channel phase part feature) -> batch time channel phase part feature",
@@ -106,16 +129,4 @@ class AudioVisualTokenProjector(nn.Module):
             + rearrange(self.audio_part_positions, "part hidden -> 1 1 1 1 part hidden")
             + rearrange(action_embeddings, "batch time hidden -> batch time 1 1 1 hidden")
         )
-        return rearrange(
-            torch.cat(
-                (
-                    video_tokens,
-                    rearrange(
-                        audio_tokens,
-                        "batch time channel phase part hidden -> batch time (channel phase part) hidden",
-                    ),
-                ),
-                dim=2,
-            ),
-            "batch time token hidden -> batch (time token) hidden",
-        )
+        return rearrange(audio_tokens, "batch time channel phase part hidden -> batch time (channel phase part) hidden")

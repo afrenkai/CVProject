@@ -14,7 +14,13 @@ from models.model_types import AudioTokenConfig, WorldModelConfig
 from models.normalization import AudioVisualNormalizer
 from models.recorded_controls import RecordedControlEncoder
 from models.world_model import AudioVisualFlowPredictor
-from training.training_types import ObjectiveConfig, ObjectiveMode, PretrainConfig, SlimLsdConfig
+from training.training_types import (
+    ModalityDropoutConfig,
+    ObjectiveConfig,
+    ObjectiveMode,
+    PretrainConfig,
+    SlimLsdConfig,
+)
 from transport.flow import AudioVisualFlowTransport
 from transport.transport_types import TimeDistributionConfig, TransportConfig
 
@@ -59,6 +65,8 @@ class WorldModelObjective(nn.Module):
         self.slim_lsd_weight = 0.0
         self.diagonal_fraction = 1.0
         self.action_dropout = 0.0
+        self.modality_dropout = ModalityDropoutConfig()
+        self.audio_history_steps = 0
 
     @jaxtyped(typechecker=beartype)
     def encode_actions(
@@ -95,10 +103,28 @@ class WorldModelObjective(nn.Module):
                 return video, audio
 
     @jaxtyped(typechecker=beartype)
+    def drop_context(
+        self,
+        video: Float[Tensor, "batch time patch video_feature"],
+        audio: Float[Tensor, "batch audio_time audio_feature"],
+    ) -> tuple[Float[Tensor, "batch time patch video_feature"], Float[Tensor, "batch audio_time audio_feature"]]:
+        dropout = self.modality_dropout
+        if not self.training or dropout.audio_context + dropout.video_context <= 0:
+            return video, audio
+        draw = torch.rand(video.shape[0], device=video.device)
+        audio_dropped = draw < dropout.audio_context
+        video_dropped = (draw >= dropout.audio_context) & (draw < dropout.audio_context + dropout.video_context)
+        video_steps = torch.arange(video.shape[1], device=video.device) < self.context_steps
+        audio_steps = torch.arange(audio.shape[1], device=audio.device) < self.context_steps + self.audio_history_steps
+        audio_keep = ~(audio_dropped[:, None] & audio_steps[None, :])
+        video_keep = ~(video_dropped[:, None] & video_steps[None, :])
+        return video * video_keep[:, :, None, None], audio * audio_keep[:, :, None]
+
+    @jaxtyped(typechecker=beartype)
     def flow_loss(
         self,
         video: Float[Tensor, "batch time patch video_feature"],
-        audio: Float[Tensor, "batch time audio_feature"],
+        audio: Float[Tensor, "batch audio_time audio_feature"],
         actions: Float[Tensor, "batch time control"],
         action_present: Int[Tensor, "batch"],  # noqa: F821
     ) -> dict[str, Tensor]:
@@ -121,7 +147,7 @@ class WorldModelObjective(nn.Module):
         return {"loss": loss, "video_flow_loss": video_loss.detach(), "audio_flow_loss": audio_loss.detach()}
 
     def forward(self, video: Tensor, audio: Tensor, actions: Tensor, action_present: Tensor) -> dict[str, Tensor]:
-        video, audio = self.silence(video, self.prepare_audio(audio))
+        video, audio = self.drop_context(*self.silence(video, self.prepare_audio(audio)))
         if self.slim_lsd_weight <= 0 or self.diagonal_fraction >= 1.0:
             return self.flow_loss(video, audio, actions, action_present)
         batch = video.shape[0]
@@ -198,6 +224,8 @@ def build_objective(
         objective.spatial_audio_target,
     ).to(device=device, dtype=torch.float32)
     world_model.action_dropout = objective.action_dropout
+    world_model.modality_dropout = objective.modality_dropout
+    world_model.audio_history_steps = encoder.kept_audio_history_steps
     return world_model
 
 
@@ -217,20 +245,4 @@ def restore_objective(
         encoder, config.encoder.total_frames, config.model, config.objective, normalizer, device
     )
     objective.load_state_dict(weights)
-    return objective.eval()
-
-
-def random_objective(
-    config: PretrainConfig, encoder: FrozenEncoderConfig, weights: dict[str, Tensor], device: torch.device, seed: int
-) -> WorldModelObjective:
-    video, audio = encoder.video_latent_dimension, encoder.audio_latent_dimension
-    normalizer = AudioVisualNormalizer(torch.zeros(video), torch.ones(video), torch.zeros(audio), torch.ones(audio))
-    torch.manual_seed(seed)
-    objective = build_objective(
-        encoder, config.encoder.total_frames, config.model, config.objective, normalizer, device
-    )
-    statistics = {name: tensor for name, tensor in weights.items() if name.startswith("normalizer.")}
-    objective.normalizer.load_state_dict(
-        {name.removeprefix("normalizer."): tensor for name, tensor in statistics.items()}
-    )
     return objective.eval()

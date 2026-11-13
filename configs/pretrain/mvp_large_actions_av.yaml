@@ -1,0 +1,14 @@
+inherit: [mvp_large_actions_mot.yaml]
+
+data:
+  cue_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_actions/cues_train/opencs2_cue
+  cue_period: 16
+
+model:
+  fusion_tokens: 16
+
+objective:
+  modality_dropout: {audio_context: 0.15, video_context: 0.25}
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_av

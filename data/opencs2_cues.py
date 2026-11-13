@@ -60,6 +60,7 @@ def pov_windows(
     )
     rate = config.tick_rate
     context, target = round(config.context_seconds * rate), round(config.target_seconds * rate)
+    history = round(config.history_seconds * rate)
     lead = context + round(config.onset_into_target * rate)
     usable = (state.ticks >= capture_start) & (state.ticks <= last_tick) & state.alive[:, viewer]
     windows = []
@@ -68,12 +69,13 @@ def pov_windows(
         gap = round(config.quiet_gap_seconds * rate)
         for onset in onsets[np.diff(onsets, prepend=-gap - 1) > gap]:
             begin, end = onset - lead, onset - lead + context + target
-            if begin < 0 or end > len(state.ticks) or not usable[begin:end].all():
+            if begin - history < 0 or end > len(state.ticks) or not usable[begin - history : end].all():
                 continue
-            if in_view[begin : begin + context, enemy].any() or engaged[begin : begin + context].any():
+            listened = slice(begin - history, begin + context)
+            if in_view[listened, enemy].any() or engaged[listened].any():
                 continue
-            heard = audible[begin : begin + context, enemy]
-            gunshot = (state.firing[begin : begin + context, enemy] & heard).any()
+            heard = audible[listened, enemy]
+            gunshot = (state.firing[listened, enemy] & heard).any()
             windows.append(
                 {
                     "start": float((state.ticks[begin] - capture_start) / rate),
@@ -86,14 +88,14 @@ def pov_windows(
             )
     quiet = ~audible.any(axis=1) & ~engaged.any(axis=1)
     generator = np.random.default_rng(config.seed + viewer)
-    candidates = np.arange(0, len(state.ticks) - context - target, rate)
+    candidates = np.arange(history, len(state.ticks) - context - target, rate)
     generator.shuffle(candidates)
     picked = 0
     for begin in candidates:
         end = begin + context + target
         if picked == config.none_per_pov:
             break
-        if usable[begin:end].all() and quiet[begin:end].all():
+        if usable[begin - history : end].all() and quiet[begin - history : end].all():
             windows.append(
                 {
                     "start": float((state.ticks[begin] - capture_start) / rate),
@@ -151,5 +153,11 @@ if __name__ == "__main__":
     parser.add_argument("root", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--split", default="validation")
+    parser.add_argument("--context-seconds", type=float, default=3.6)
+    parser.add_argument("--target-seconds", type=float, default=2.8)
+    parser.add_argument("--history-seconds", type=float, default=0.0)
     args = parser.parse_args()
-    main(args.root, args.split, args.output, CueConfig())
+    timing = CueConfig(
+        context_seconds=args.context_seconds, target_seconds=args.target_seconds, history_seconds=args.history_seconds
+    )
+    main(args.root, args.split, args.output, timing)

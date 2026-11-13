@@ -7,12 +7,13 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from transformers import TrainingArguments
 from configs.loading import load_run_settings
 from data.control_types import ControlLayout
-from data.latent_cache import CachedClipDataset
+from data.latent_cache import CachedClipDataset, InterleavedClipDataset
 from models.encoder_types import FrozenEncoderConfig
 from models.normalization import AudioVisualNormalizer, RunningMoments
 from models.transformers import AdaptiveAttentionBlock
 from training.objective import WorldModelObjective, build_objective, checkpoint_weights
 from training.optimization import build_optimizer, build_schedule, warmup_ema_update
+from training.probe import ProbeCallback
 from training.trainer import (
     EmaCallback,
     SlimLsdCallback,
@@ -44,6 +45,10 @@ def load_datasets(config: PretrainConfig, rank: int) -> tuple[Dataset, dict[str,
     assert data_config.latent_cache is not None
     cache = Path(data_config.latent_cache)
     dataset = CachedClipDataset(cache / "train", data_config.clips)
+    if data_config.cue_cache is not None and data_config.cue_period:
+        dataset = InterleavedClipDataset(
+            dataset, CachedClipDataset(Path(data_config.cue_cache)), data_config.cue_period
+        )
     if rank == 0:
         print(f"Training on {len(dataset)} cached clips from {cache}", flush=True)
     if not data_config.validation_clips:
@@ -95,7 +100,12 @@ def warm_up(
     patches = encoder_config.video_patches
     clips = (
         torch.randn(batch_size, time_steps, patches, encoder_config.video_latent_dimension, device=device),
-        torch.randn(batch_size, time_steps, encoder_config.audio_latent_dimension, device=device),
+        torch.randn(
+            batch_size,
+            time_steps + encoder_config.kept_audio_history_steps,
+            encoder_config.audio_latent_dimension,
+            device=device,
+        ),
         torch.zeros(batch_size, time_steps, ControlLayout().dimension, device=device),
         torch.zeros(batch_size, dtype=torch.int64, device=device),
     )
@@ -141,7 +151,7 @@ def main(config: PretrainConfig) -> None:
     warm_up(objective, config, encoder_config, arguments)
 
     batch_size = trainer_config.batch_size
-    steps_per_epoch = (config.data.clips // world) // (batch_size * trainer_config.gradient_accumulation)
+    steps_per_epoch = (len(dataset) // world) // (batch_size * trainer_config.gradient_accumulation)
     total_steps = max(
         trainer_config.max_steps or steps_per_epoch * trainer_config.epochs, optimizer_config.warmup_steps + 1
     )
@@ -163,6 +173,9 @@ def main(config: PretrainConfig) -> None:
     ]
     if config.objective.slim_lsd.weight > 0:
         callbacks.append(SlimLsdCallback(objective))
+    if trainer_config.probe.caches:
+        steps = config.encoder.total_frames // encoder_config.video_frames_per_step
+        callbacks.append(ProbeCallback(trainer_config.probe, averaged, steps, output))
     trainer = WorldModelTrainer(
         model=objective,
         args=arguments,

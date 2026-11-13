@@ -15,3 +15,5 @@ objective:
 
 trainer:
   output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions
+  batch_size: 8
+  gradient_accumulation: 8

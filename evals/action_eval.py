@@ -5,7 +5,7 @@ from einops import rearrange, repeat
 from torch import Tensor
 from torch.utils.data import DataLoader, Subset
 from data.latent_cache import CachedClipDataset
-from evals.samples import ensemble_errors, resolve_checkpoint, rollout, save_summary
+from evals.samples import ensemble_errors, kept_steps, resolve_checkpoint, rollout, save_summary
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 
@@ -109,11 +109,16 @@ def main(
     dataset = CachedClipDataset(cache)
     present = [index for index in range(len(dataset)) if int(dataset[index]["action_present"]) == 1][:clips]
     assert len(present) >= batch_size, f"only {len(present)} clips with actions in {cache}"
+    assert batch_size >= candidates, f"retrieval needs {candidates} distinct clips per batch, got {batch_size}"
     collected: dict[str, list[Tensor]] = {}
     for index, batch in enumerate(DataLoader(Subset(dataset, present), batch_size=batch_size, drop_last=True)):
         steps = config.encoder.total_frames // encoder_config.video_frames_per_step
         batch = {
-            name: tensor.to(device)[:, -steps:] if tensor.dim() > 1 else tensor.to(device)
+            name: (
+                tensor.to(device)[:, -kept_steps(name, steps, objective.audio_history_steps) :]
+                if tensor.dim() > 1
+                else tensor.to(device)
+            )
             for name, tensor in batch.items()
         }
         batch = {**batch, "video": batch["video"].float(), "audio": batch["audio"].float()}
@@ -149,7 +154,7 @@ if __name__ == "__main__":
     parser.add_argument("checkpoint")
     parser.add_argument("cache", type=Path)
     parser.add_argument("--clips", type=int, default=128)
-    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--members", type=int, default=4)
     parser.add_argument("--candidates", type=int, default=8)
     parser.add_argument("--integration-steps", type=int, default=8)

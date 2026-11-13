@@ -149,6 +149,9 @@ class FrozenEncoderConfig(AudioTiming):
     spatial_mel_bands: PositiveInt = 64
     maximum_interaural_delay_seconds: float = 0.001
     ambisonic: bool = False
+    kept_audio_history_steps: NonNegativeInt = 0
+    audio_target_chunk_steps: PositiveInt | None = None
+    audio_window_steps: PositiveInt | None = None
 
     @property
     def audio_channels(self) -> int:
@@ -196,6 +199,9 @@ class EncoderConfig(FrozenModel):
     context_frames: PositiveInt = 12
     total_frames: PositiveInt = 40
     spatial_audio: bool = False
+    audio_history_frames: NonNegativeInt = 0
+    audio_target_chunk_frames: PositiveInt | None = None
+    audio_window_frames: PositiveInt | None = None
 
     def resolve(self, bfloat16: bool) -> FrozenEncoderConfig:
         directory = Path(snapshot_download(self.audio.model_id))
@@ -204,8 +210,19 @@ class EncoderConfig(FrozenModel):
             video_frames_per_step=self.video_frames_per_step,
             context_frames=self.context_frames,
         )
+        timing = self.audio.timing(directory, steps)
+        assert self.audio_history_frames % self.video_frames_per_step == 0
+        kept = self.audio_history_frames // self.video_frames_per_step
+        assert kept == 0 or timing.audio_history_steps == 0
+        chunk = self.audio_target_chunk_frames
+        assert chunk is None or chunk % self.video_frames_per_step == 0
+        window = self.audio_window_frames
+        assert window is None or window % self.video_frames_per_step == 0
         return FrozenEncoderConfig(
-            **self.audio.timing(directory, steps).model_dump(),
+            **timing.model_copy(update={"audio_history_steps": timing.audio_history_steps + kept}).model_dump(),
+            kept_audio_history_steps=kept,
+            audio_target_chunk_steps=None if chunk is None else chunk // self.video_frames_per_step,
+            audio_window_steps=None if window is None else window // self.video_frames_per_step,
             video=self.video,
             audio=self.audio,
             audio_model_directory=directory,

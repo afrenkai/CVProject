@@ -6,7 +6,7 @@ from torch import Tensor
 from data.control_types import ControlLayout
 from data.latent_cache import CachedClipDataset
 from evals.eval_types import ActionSearchConfig, CostModality
-from evals.samples import resolve_checkpoint, save_summary
+from evals.samples import kept_steps, resolve_checkpoint, save_summary
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 from transport.solvers import solve_flow_map
@@ -27,7 +27,8 @@ def predict(
     context_steps = objective.context_steps
     conditioned = objective.encode_actions(controls, torch.ones(candidates, dtype=torch.long, device=controls.device))
     context_video = repeat(video[:, :context_steps], "one ... -> (one candidate) ...", candidate=candidates)
-    context_audio = repeat(audio[:, :context_steps], "one ... -> (one candidate) ...", candidate=candidates)
+    audio_context_steps = context_steps + objective.audio_history_steps
+    context_audio = repeat(audio[:, :audio_context_steps], "one ... -> (one candidate) ...", candidate=candidates)
     sampled_video, sampled_audio = solve_flow_map(
         objective.predictor,
         noise_video.expand(candidates, *noise_video.shape[1:]),
@@ -51,7 +52,10 @@ def plan_cost(
 ) -> Tensor:
     video_cost = (predicted[0] - video[:, context_steps:]).square().mean(dim=(1, 2, 3))
     audio_cost = (
-        (objective.scored_audio(predicted[1]) - objective.scored_audio(audio[:, context_steps:]))
+        (
+            objective.scored_audio(predicted[1])
+            - objective.scored_audio(audio[:, context_steps + objective.audio_history_steps :])
+        )
         .square()
         .mean(dim=(1, 2))
     )
@@ -210,7 +214,10 @@ def main(run: Path, checkpoint: Path, cache: Path, settings: ActionSearchConfig)
     clips = [dataset[index] for index in range(len(dataset))]
     steps = config.encoder.total_frames // encoder_config.video_frames_per_step
     clips = [
-        {name: tensor[-steps:] if tensor.dim() else tensor for name, tensor in clip.items()}
+        {
+            name: tensor[-kept_steps(name, steps, objective.audio_history_steps) :] if tensor.dim() else tensor
+            for name, tensor in clip.items()
+        }
         for clip in clips
         if int(clip["action_present"]) == 1
     ][: settings.clips]

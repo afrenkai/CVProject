@@ -22,6 +22,8 @@ class DatasetConfig(FrozenModel):
     synthetic: bool = False
     # better to do Path type here???
     latent_cache: str | None = None
+    cue_cache: str | None = None
+    cue_period: int = Field(default=0, ge=0)
     clips: PositiveInt
     validation_clips: NonNegativeInt = 0
     seed: NonNegativeInt = 0
@@ -48,6 +50,7 @@ class CueConfig(FrozenModel):
     tick_rate: PositiveInt = 64
     context_seconds: PositiveFloat = 3.6
     target_seconds: PositiveFloat = 2.8
+    history_seconds: NonNegativeFloat = 0.0
     onset_into_target: NonNegativeFloat = 1.0
     view_half_yaw: PositiveFloat = 53.0
     view_half_pitch: PositiveFloat = 30.0

@@ -1,5 +1,5 @@
-from typing import Literal
-from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt
+from typing import Literal, Self
+from pydantic import Field, NonNegativeFloat, NonNegativeInt, PositiveFloat, PositiveInt, model_validator
 from configs.config_types import FrozenModel
 from data.data_types import DatasetConfig
 from models.encoder_types import EncoderConfig
@@ -21,6 +21,16 @@ class SlimLsdConfig(FrozenModel):
     adaptive_power: NonNegativeFloat = 0.75
 
 
+class ModalityDropoutConfig(FrozenModel):
+    audio_context: float = Field(default=0.0, ge=0.0, lt=1.0)
+    video_context: float = Field(default=0.0, ge=0.0, lt=1.0)
+
+    @model_validator(mode="after")
+    def validate_total(self) -> Self:
+        assert self.audio_context + self.video_context < 1.0
+        return self
+
+
 class ObjectiveConfig(FrozenModel):
     mode: ObjectiveMode = "audio_visual"
     time_shift: PositiveFloat | None = None
@@ -29,6 +39,7 @@ class ObjectiveConfig(FrozenModel):
     audio_step_pooling: bool = False
     spatial_audio_target: bool = True
     slim_lsd: SlimLsdConfig = Field(default_factory=SlimLsdConfig)
+    modality_dropout: ModalityDropoutConfig = Field(default_factory=ModalityDropoutConfig)
 
 
 class OptimizerConfig(FrozenModel):
@@ -39,6 +50,16 @@ class OptimizerConfig(FrozenModel):
     final_learning_rate_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
     gradient_clip: NonNegativeFloat = 1.0
     betas: tuple[PositiveFloat, PositiveFloat] = (0.9, 0.999)
+
+
+class ProbeConfig(FrozenModel):
+    caches: tuple[str, ...] = ()
+    every: PositiveInt = 1000
+    clips: PositiveInt = 64
+    batch_size: PositiveInt = 8
+    members: PositiveInt = 4
+    integration_steps: PositiveInt = 8
+    snapshot: bool = False
 
 
 class TrainerConfig(FrozenModel):
@@ -61,6 +82,7 @@ class TrainerConfig(FrozenModel):
     wandb_mode: Literal["online", "offline", "disabled"] = "offline"
     compile: bool = False
     recompile_limit: PositiveInt = 512
+    probe: ProbeConfig = Field(default_factory=ProbeConfig)
 
 
 class PretrainConfig(FrozenModel):

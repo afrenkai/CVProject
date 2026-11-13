@@ -1,0 +1,8 @@
+trainer:
+  probe:
+    caches:
+      - ${oc.env:SPEAKUP_LATENTS}/mvp_actions/cues/opencs2_cue
+      - ${oc.env:SPEAKUP_LATENTS}/mvp_actions/cues/opencs2_silent
+      - ${oc.env:SPEAKUP_LATENTS}/mvp_actions/cues/opencs2_none
+    every: 1000
+    snapshot: true

@@ -8,6 +8,10 @@ from training.objective import WorldModelObjective
 from transport.solvers import solve_flow_map
 
 
+def kept_steps(name: str, steps: int, history_steps: int) -> int:
+    return steps + history_steps if name == "audio" else steps
+
+
 @torch.no_grad()
 def rollout(
     objective: WorldModelObjective,
@@ -18,11 +22,12 @@ def rollout(
     video = objective.normalizer.normalize_video(batch["video"].float())
     audio = objective.prepare_audio(objective.normalizer.normalize_audio(batch["audio"].float()))
     context_steps = objective.context_steps
+    audio_context_steps = context_steps + objective.audio_history_steps
     conditioned = objective.encode_actions(batch["actions"], batch["action_present"])
-    context_video, context_audio = objective.silence(video[:, :context_steps], audio[:, :context_steps])
+    context_video, context_audio = objective.silence(video[:, :context_steps], audio[:, :audio_context_steps])
     generator = torch.Generator(device=video.device).manual_seed(seed)
     noise_video = torch.randn(video[:, context_steps:].shape, generator=generator, device=video.device)
-    noise_audio = torch.randn(audio[:, context_steps:].shape, generator=generator, device=video.device)
+    noise_audio = torch.randn(audio[:, audio_context_steps:].shape, generator=generator, device=video.device)
     sampled_video, sampled_audio = solve_flow_map(
         objective.predictor,
         noise_video,
@@ -35,9 +40,9 @@ def rollout(
     )
     return {
         "context_video": context_video,
-        "context_audio": objective.scored_audio(audio[:, :context_steps]),
+        "context_audio": objective.scored_audio(audio[:, objective.audio_history_steps : audio_context_steps]),
         "true_video": video[:, context_steps:],
-        "true_audio": objective.scored_audio(audio[:, context_steps:]),
+        "true_audio": objective.scored_audio(audio[:, audio_context_steps:]),
         "predicted_video": objective.transport.video_frames(sampled_video, context_video),
         "predicted_audio": objective.scored_audio(sampled_audio),
     }

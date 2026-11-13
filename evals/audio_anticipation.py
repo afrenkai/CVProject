@@ -5,9 +5,9 @@ from einops import rearrange, repeat
 from torch import Tensor
 from torch.utils.data import DataLoader
 from data.latent_cache import CachedClipDataset
-from evals.samples import ensemble_crps, resolve_checkpoint, rollout, save_summary
+from evals.samples import ensemble_crps, kept_steps, resolve_checkpoint, rollout, save_summary
 from models.encoder_types import FrozenEncoderConfig
-from training.objective import WorldModelObjective, checkpoint_weights, random_objective, restore_objective
+from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 
 
@@ -89,7 +89,8 @@ def clip_scores(objective: WorldModelObjective, batch: dict[str, Tensor], onset_
     context_steps = objective.context_steps
     audio = objective.normalizer.normalize_audio(batch["audio"].float())
     video = objective.normalizer.normalize_video(batch["video"].float())
-    recent = audio[:, context_steps - onset_steps : context_steps]
+    audio_context_steps = context_steps + objective.audio_history_steps
+    recent = audio[:, audio_context_steps - onset_steps : audio_context_steps]
     onset = (recent[:, 1:] - recent[:, :-1]).norm(dim=-1).max(dim=1).values
     surprise = (video[:, context_steps:] - video[:, context_steps - 1 : context_steps]).square().mean(dim=(1, 2, 3))
     return {"onset": onset, "surprise": surprise}
@@ -122,6 +123,7 @@ def main(
     members: int,
     integration_steps: int,
     onset_steps: int,
+    null_actions: bool,
 ) -> None:
     config = PretrainConfig.model_validate_json((run / "config.json").read_text())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -131,17 +133,20 @@ def main(
     twins = {
         "video_twin": twin_objective(video_twin, checkpoint, encoder_config, device),
         "audio_twin": twin_objective(audio_twin, checkpoint, encoder_config, device),
-        "random_init": random_objective(
-            config, encoder_config, checkpoint_weights(checkpoint, True), device, config.data.seed
-        ),
     }
     steps = config.encoder.total_frames // encoder_config.video_frames_per_step
     collected: dict[str, list[Tensor]] = {}
     for index, batch in enumerate(DataLoader(CachedClipDataset(cache, clips), batch_size=batch_size, drop_last=True)):
         batch = {
-            name: tensor.to(device)[:, -steps:].float() if tensor.dim() > 1 else tensor.to(device)
+            name: (
+                tensor.to(device)[:, -kept_steps(name, steps, objective.audio_history_steps) :].float()
+                if tensor.dim() > 1
+                else tensor.to(device)
+            )
             for name, tensor in batch.items()
         }
+        if null_actions:
+            batch = {**batch, "action_present": torch.zeros_like(batch["action_present"])}
         shuffled = torch.roll(torch.arange(batch_size, device=device), 1)
         variants = {
             "true": batch,
@@ -177,8 +182,8 @@ def main(
     tensors = {name: torch.cat(values) for name, values in collected.items()}
     summary: dict[str, object] = {"clips": tensors["video_crps_true"].numel()}
     comparisons = {
-        "video": ("audio_shuffled", "audio_muted", "video_twin", "random_init", "copy"),
-        "audio": ("video_shuffled", "video_off", "audio_twin", "random_init", "copy"),
+        "video": ("audio_shuffled", "audio_muted", "video_twin", "copy"),
+        "audio": ("video_shuffled", "video_off", "audio_twin", "copy"),
     }
     for modality, baselines in comparisons.items():
         true_crps = tensors[f"{modality}_crps_true"]
@@ -197,7 +202,7 @@ def main(
             summary[f"consistency/{name}/{metric}"] = tensors[f"{metric}_{name}"].mean().item()
     for name, value in summary.items():
         print(f"{name}: {value}", flush=True)
-    save_summary(summary, checkpoint, "cross_modal", cache)
+    save_summary(summary, checkpoint, "cross_modal_null_actions" if null_actions else "cross_modal", cache)
 
 
 if __name__ == "__main__":
@@ -212,6 +217,7 @@ if __name__ == "__main__":
     parser.add_argument("--members", type=int, default=4)
     parser.add_argument("--integration-steps", type=int, default=8)
     parser.add_argument("--onset-steps", type=int, default=10)
+    parser.add_argument("--null-actions", action="store_true")
     args = parser.parse_args()
     main(
         args.run,
@@ -224,4 +230,5 @@ if __name__ == "__main__":
         args.members,
         args.integration_steps,
         args.onset_steps,
+        args.null_actions,
     )

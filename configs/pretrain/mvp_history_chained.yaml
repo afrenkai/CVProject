@@ -1,0 +1,8 @@
+inherit: [mvp_history.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_history_chained
+
+encoder:
+  total_frames: 116
+  audio_target_chunk_frames: 40

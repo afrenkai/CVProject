@@ -1,0 +1,23 @@
+inherit: [mvp_large_actions_av.yaml, probe.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_history
+  cue_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_history/cues_train/opencs2_cue
+
+encoder:
+  context_frames: 36
+  total_frames: 76
+  audio_history_frames: 64
+  audio_window_frames: 100
+
+objective:
+  audio_step_pooling: false
+  spatial_audio_target: true
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_history
+  probe:
+    caches:
+      - ${oc.env:SPEAKUP_LATENTS}/mvp_history/cues/opencs2_cue
+      - ${oc.env:SPEAKUP_LATENTS}/mvp_history/cues/opencs2_silent
+      - ${oc.env:SPEAKUP_LATENTS}/mvp_history/cues/opencs2_none

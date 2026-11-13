@@ -52,6 +52,24 @@ class CachedClipDataset(Dataset):
         }
 
 
+class InterleavedClipDataset(Dataset):
+    def __init__(self, base: Dataset, extra: Dataset, period: int) -> None:
+        assert period >= 2 and len(extra) > 0
+        self.base = base
+        self.extra = extra
+        self.period = period
+        self.total = len(base) // (period - 1) * period
+
+    def __len__(self) -> int:
+        return self.total
+
+    def __getitem__(self, index: int) -> dict[str, Tensor]:
+        block, offset = divmod(index, self.period)
+        if offset == self.period - 1:
+            return self.extra[block % len(self.extra)]
+        return self.base[block * (self.period - 1) + offset]
+
+
 @torch.no_grad()
 def write_shards(
     dataset: WorldModelDataset,
@@ -94,6 +112,7 @@ def main(
     windows: Path | None,
     source: str,
     per_label: int,
+    labels: list[str],
     overrides: list[str],
 ) -> None:
     config = PretrainConfig.model_validate(load_run_settings(config_path, overrides))
@@ -106,6 +125,8 @@ def main(
     settings = {"shard_clips": 1024, "batch_size": 32, "workers": config.data.workers, "device": device}
     if windows is not None:
         table = pandas.read_parquet(windows)
+        table = table[table.label.isin(labels)]
+        cue_root = output / ("cues" if split == "validation" else f"cues_{split}")
         for label, group in table.groupby("label"):
             chosen = group.sample(n=min(len(group), per_label), random_state=config.data.seed).sort_values("media_id")
             window_config = config.data.model_copy(update={"mirror_probability": 0.0})
@@ -116,8 +137,8 @@ def main(
             print(f"{label}: {len(chosen)} of {len(readable)} windows readable", flush=True)
             examples = [example for index, example in enumerate(examples) if readable[index]]
             dataset = WindowDataset(examples, chosen.start.tolist(), *arguments)
-            write_shards(dataset, encoder, output / "cues" / f"{source}_{label}", 0, len(dataset), **settings)
-            chosen.to_parquet(output / "cues" / f"{source}_{label}" / "windows.parquet", index=False)
+            write_shards(dataset, encoder, cue_root / f"{source}_{label}", 0, len(dataset), **settings)
+            chosen.to_parquet(cue_root / f"{source}_{label}" / "windows.parquet", index=False)
         return
     if split == "train":
         dataset = build_dataset(config.data, encoder_config, config.encoder.total_frames, layout)
@@ -152,6 +173,7 @@ if __name__ == "__main__":
     parser.add_argument("--windows", type=Path)
     parser.add_argument("--source", default="opencs2")
     parser.add_argument("--per-label", type=int, default=512)
+    parser.add_argument("--labels", nargs="+", default=["cue", "silent", "none"])
     parser.add_argument("overrides", nargs="*")
     args = parser.parse_args()
     main(
@@ -162,5 +184,6 @@ if __name__ == "__main__":
         args.windows,
         args.source,
         args.per_label,
+        args.labels,
         args.overrides,
     )
