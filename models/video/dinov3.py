@@ -9,6 +9,18 @@ from models.encoder_types import Dinov3Config, FrozenEncoderConfig
 from models.video.base import VideoEncoder
 
 
+def layer_mean(
+    backbone: VisionTransformer, frames: Float[Tensor, "frame channel height width"], layer_indices: list[int]
+) -> Float[Tensor, "frame patch feature"]:
+    layers = cast(
+        list[Tensor],
+        backbone.forward_intermediates(
+            frames, indices=layer_indices, norm=True, output_fmt="NLC", intermediates_only=True
+        ),
+    )
+    return reduce(torch.stack(layers), "layer frame patch feature -> frame patch feature", "mean")
+
+
 class Dinov3VideoEncoder(VideoEncoder):
     def __init__(self, config: FrozenEncoderConfig, video: Dinov3Config) -> None:
         """
@@ -36,14 +48,4 @@ class Dinov3VideoEncoder(VideoEncoder):
         )
 
     def features(self, frames: Float[Tensor, "frame channel height width"]) -> Float[Tensor, "frame patch feature"]:
-        layers = cast(
-            list[Tensor],
-            self.backbone.forward_intermediates(
-                (frames - self.mean) / self.standard_deviation,
-                indices=self.layer_indices,
-                norm=True,
-                output_fmt="NLC",
-                intermediates_only=True,
-            ),
-        )
-        return reduce(torch.stack(layers), "layer frame patch feature -> frame patch feature", "mean")
+        return layer_mean(self.backbone, (frames - self.mean) / self.standard_deviation, self.layer_indices)

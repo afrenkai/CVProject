@@ -1,0 +1,11 @@
+inherit: [mvp_large_actions_mot.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/large_actions
+
+encoder:
+  video: {kind: dinov3, model_id: vit_large_patch16_dinov3.lvd1689m, feature_dimension: 1024, layers: [6, 12, 18, 24]}
+  audio: {kind: dasheng, model_id: mispeech/dasheng-1.2B}
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/large_actions_mot

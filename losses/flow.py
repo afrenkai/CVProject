@@ -12,17 +12,20 @@ def flow_matching_terms(
     transport: AudioVisualFlowTransport,
     predictor: AudioVisualFlowPredictor,
     video_latents: Float[Tensor, "batch time patch video_feature"],
-    audio_latents: Float[Tensor, "batch time audio_feature"],
+    audio_latents: Float[Tensor, "batch audio_time audio_feature"],
     context_steps: int,
     actions: Float[Tensor, "batch target_time action"],
     context_actions: Float[Tensor, "batch context_time action"],
+    video_weight: float,
     audio_weight: float,
+    audio_mask: Float[Tensor, "audio_feature"],  # noqa: F821
 ) -> tuple[Tensor, Tensor, Tensor]:
     assert 0 < context_steps < video_latents.shape[1]
     context_video = video_latents[:, :context_steps].detach()
-    context_audio = audio_latents[:, :context_steps].detach()
+    audio_context_steps = context_steps + audio_latents.shape[1] - video_latents.shape[1]
+    context_audio = audio_latents[:, :audio_context_steps].detach()
     target_video = transport.video_target(video_latents[:, context_steps:].detach(), context_video)
-    interpolant = transport.sample_interpolant(target_video, audio_latents[:, context_steps:].detach())
+    interpolant = transport.sample_interpolant(target_video, audio_latents[:, audio_context_steps:].detach())
     context_noise = None
     if transport.config.context_noise > 0:
         context_noise = transport.config.context_noise * torch.rand(
@@ -44,7 +47,8 @@ def flow_matching_terms(
         context_noise=context_noise,
     )
     video_loss = (video_velocity.float() - interpolant.video_velocity.float()).square().mean()
-    audio_loss = (audio_velocity.float() - interpolant.audio_velocity.float()).square().mean()
-    loss = video_loss + audio_weight * audio_loss
+    audio_error = (audio_velocity.float() - interpolant.audio_velocity.float()).square()
+    audio_loss = (audio_error * audio_mask).mean() / audio_mask.mean()
+    loss = video_weight * video_loss + audio_weight * audio_loss
     assert loss.dtype == torch.float32 and torch.isfinite(loss)
     return loss, video_loss, audio_loss

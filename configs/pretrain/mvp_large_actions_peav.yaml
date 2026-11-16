@@ -1,0 +1,10 @@
+inherit: [mvp_large_actions.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_actions_peav
+
+encoder:
+  audio: {kind: pe_av, model_id: facebook/pe-av-base}
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_peav

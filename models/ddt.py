@@ -42,8 +42,9 @@ class AudioVisualDDTHead(nn.Module):
         hidden = config.diffusion_head.hidden_dimension
         self.activation_checkpointing = False
         self.audio_tokens = audio_tokens
+        self.fusion_tokens = config.fusion_tokens
         self.target_tokens = AudioVisualTokenProjector(
-            video_dimension, audio_dimension, hidden, config.spatial_grid, audio_tokens
+            video_dimension, audio_dimension, hidden, config.spatial_grid, audio_tokens, config.fusion_tokens
         )
         self.context_tokens = AudioVisualTokenProjector(
             video_dimension, audio_dimension, hidden, config.spatial_grid, audio_tokens
@@ -51,7 +52,13 @@ class AudioVisualDDTHead(nn.Module):
         self.action_projection = nn.Linear(config.action_dimension, hidden, bias=False)
         self.condition_projection = nn.Linear(config.backbone.hidden_dimension, hidden)
         self.blocks = nn.ModuleList(
-            AdaptiveAttentionBlock(hidden, config.diffusion_head.heads, config.mlp_ratio, config.attention_backend)
+            AdaptiveAttentionBlock(
+                hidden,
+                config.diffusion_head.heads,
+                config.mlp_ratio,
+                config.attention_backend,
+                config.token_layout(audio_tokens),
+            )
             for layer_index in range(config.diffusion_head.layers)
         )
         self.video_output = AdaptiveOutputProjection(hidden, video_dimension)
@@ -67,6 +74,7 @@ class AudioVisualDDTHead(nn.Module):
         backbone_targets: Tensor,
         backbone_condition: Tensor,
         attention_mask: Tensor | BlockMask,
+        context_mask: Tensor | BlockMask | None = None,
     ) -> tuple[Tensor, Tensor]:
         target_steps = noisy_video.shape[1]
         video_patches = noisy_video.shape[2]
@@ -76,17 +84,27 @@ class AudioVisualDDTHead(nn.Module):
             0,
             self.action_projection(target_actions),
         )
-        context = self.context_tokens(context_video, context_audio, -context_video.shape[1])
+        context_steps = context_video.shape[1]
+        history_steps = context_audio.shape[1] - context_steps
+        context = self.context_tokens(context_video, context_audio[:, history_steps:], -context_steps)
+        history = (
+            self.context_tokens.history_tokens(context_audio[:, :history_steps], -context_audio.shape[1])
+            if history_steps
+            else None
+        )
         condition = self.condition_projection(
             F.silu(backbone_targets + rearrange(backbone_condition, "batch hidden -> batch 1 hidden"))
         )
         for block in self.blocks:
             if self.activation_checkpointing and torch.is_grad_enabled():
-                targets = checkpoint(block, targets, context, condition, attention_mask, use_reentrant=False)
+                targets = checkpoint(
+                    block, targets, context, condition, attention_mask, context_mask, history, use_reentrant=False
+                )
             else:
-                targets = block(targets, context, condition, attention_mask)
+                targets = block(targets, context, condition, attention_mask, context_mask, history)
 
-        tokens_per_step = video_patches + self.audio_tokens.tokens_per_step
+        audio_tokens = self.audio_tokens.tokens_per_step
+        tokens_per_step = video_patches + audio_tokens + self.fusion_tokens
         predictions = rearrange(
             targets,
             "batch (time token) hidden -> batch time token hidden",
@@ -104,7 +122,7 @@ class AudioVisualDDTHead(nn.Module):
             output_condition[:, :, :video_patches],
         )
         audio_velocity = self.audio_output(
-            predictions[:, :, video_patches:],
-            output_condition[:, :, video_patches:],
+            predictions[:, :, video_patches : video_patches + audio_tokens],
+            output_condition[:, :, video_patches : video_patches + audio_tokens],
         )
         return video_velocity, rearrange(audio_velocity, "batch time token feature -> batch time (token feature)")

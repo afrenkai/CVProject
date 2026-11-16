@@ -14,7 +14,7 @@ def slim_lsd_loss(
     transport: AudioVisualFlowTransport,
     predictor: AudioVisualFlowPredictor,
     video_latents: Float[Tensor, "batch time patch video_feature"],
-    audio_latents: Float[Tensor, "batch time audio_feature"],
+    audio_latents: Float[Tensor, "batch audio_time audio_feature"],
     context_steps: int,
     actions: Float[Tensor, "batch target_time action"],
     context_actions: Float[Tensor, "batch context_time action"],
@@ -23,9 +23,10 @@ def slim_lsd_loss(
     adaptive_power: float,
 ) -> tuple[Float[Tensor, ""], Float[Tensor, ""]]:
     context_video = video_latents[:, :context_steps].detach()
-    context_audio = audio_latents[:, :context_steps].detach()
+    audio_context_steps = context_steps + audio_latents.shape[1] - video_latents.shape[1]
+    context_audio = audio_latents[:, :audio_context_steps].detach()
     target_video = transport.video_target(video_latents[:, context_steps:].detach(), context_video)
-    target_audio = audio_latents[:, context_steps:].detach()
+    target_audio = audio_latents[:, audio_context_steps:].detach()
     interpolant = transport.sample_interpolant(target_video, target_audio)
     end_time = (
         transport.sample_end_time(interpolant.time, maximum_time_gap)

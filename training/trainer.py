@@ -119,12 +119,10 @@ class WorldModelTrainer(RunningLossTrainer):
         self,
         *arguments: object,
         normalizer: AudioVisualNormalizer,
-        video_only: bool,
         **settings: object,
     ) -> None:
         super().__init__(*arguments, **settings)
         self.normalizer = normalizer
-        self.video_only = video_only  # to make sure audio contributed
         self.evaluation_batches = 0
 
     def compute_loss(
@@ -137,8 +135,6 @@ class WorldModelTrainer(RunningLossTrainer):
         with torch.no_grad(), torch.autocast(self.args.device.type, dtype=torch.bfloat16, enabled=self.args.bf16):
             video = self.normalizer.normalize_video(inputs["video"].float())
             audio = self.normalizer.normalize_audio(inputs["audio"].float())
-            if self.video_only:
-                audio = torch.zeros_like(audio)
         outputs = model(video, audio, inputs["actions"], inputs["action_present"])
         self.record(outputs, model.training)
         return outputs["loss"]

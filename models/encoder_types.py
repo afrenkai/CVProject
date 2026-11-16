@@ -19,6 +19,7 @@ class AudioTiming(FrozenModel):
     audio_tokens_per_step: PositiveInt
     audio_history_steps: NonNegativeInt
     audio_token_parts: PositiveInt
+    sample_rate: PositiveInt = 16000
 
 
 class AudioMosaicPreprocessing(FrozenModel):
@@ -46,7 +47,7 @@ class AudioMosaicArchitecture(BaseModel):
 
     @property
     def window_samples(self) -> int:
-        #TODO: make adaptive
+        # TODO: make adaptive
         return self.audio_preprocessing.sample_rate * 25 // 1000
 
     @property
@@ -63,6 +64,14 @@ class Dinov3Config(FrozenModel):
     mean: tuple[float, float, float] = (0.485, 0.456, 0.406)
     standard_deviation: tuple[float, float, float] = (0.229, 0.224, 0.225)
     cache_directory: Path | None = None
+
+
+class PeAvVideoConfig(FrozenModel):
+    kind: Literal["pe_av"] = "pe_av"
+    model_id: str = "facebook/pe-av-base"
+    feature_dimension: PositiveInt = 1024
+    layers: tuple[PositiveInt, ...] = (6, 12, 18, 24)
+    patch_size: PositiveInt = 16
 
 
 class DashengConfig(FrozenModel):
@@ -87,7 +96,7 @@ class AudioMosaicConfig(FrozenModel):
     frequency_tokens: bool = False
 
     def timing(self, directory: Path, steps: StepTiming) -> AudioTiming:
-        #checking via hf
+        # checking via hf
         architecture = AudioMosaicArchitecture.model_validate_json((directory / "config.json").read_text())
 
         assert steps.video_rate % steps.video_frames_per_step == 0
@@ -106,8 +115,25 @@ class AudioMosaicConfig(FrozenModel):
         )
 
 
-type VideoEncoderSettings = Dinov3Config
-type AudioEncoderSettings = Annotated[DashengConfig | AudioMosaicConfig, Field(discriminator="kind")]
+class PeAvAudioConfig(FrozenModel):
+    kind: Literal["pe_av"] = "pe_av"
+    model_id: str = "facebook/pe-av-base"
+
+    def timing(self, directory: Path, steps: StepTiming) -> AudioTiming:
+        audio = AutoConfig.from_pretrained(str(directory), local_files_only=True).audio_video_config.audio_config
+        return AudioTiming(
+            audio_feature_dimension=audio.hidden_size,
+            audio_native_frame_rate=audio.dac_config.sampling_rate // audio.dac_config.hop_length,
+            audio_frame_repeat=2,
+            audio_tokens_per_step=5,
+            audio_history_steps=0,
+            audio_token_parts=1,
+            sample_rate=audio.dac_config.sampling_rate,
+        )
+
+
+type VideoEncoderSettings = Annotated[Dinov3Config | PeAvVideoConfig, Field(discriminator="kind")]
+type AudioEncoderSettings = Annotated[DashengConfig | AudioMosaicConfig | PeAvAudioConfig, Field(discriminator="kind")]
 
 
 class FrozenEncoderConfig(AudioTiming):
@@ -116,7 +142,6 @@ class FrozenEncoderConfig(AudioTiming):
     audio_model_directory: Path
     image_size: PositiveInt = 128
     video_rate: PositiveInt = 30
-    sample_rate: PositiveInt = 16000
     video_frames_per_step: PositiveInt = 3
     context_frames: PositiveInt = 60
     bfloat16: bool = False
@@ -124,6 +149,9 @@ class FrozenEncoderConfig(AudioTiming):
     spatial_mel_bands: PositiveInt = 64
     maximum_interaural_delay_seconds: float = 0.001
     ambisonic: bool = False
+    kept_audio_history_steps: NonNegativeInt = 0
+    audio_target_chunk_steps: PositiveInt | None = None
+    audio_window_steps: PositiveInt | None = None
 
     @property
     def audio_channels(self) -> int:
@@ -171,6 +199,9 @@ class EncoderConfig(FrozenModel):
     context_frames: PositiveInt = 12
     total_frames: PositiveInt = 40
     spatial_audio: bool = False
+    audio_history_frames: NonNegativeInt = 0
+    audio_target_chunk_frames: PositiveInt | None = None
+    audio_window_frames: PositiveInt | None = None
 
     def resolve(self, bfloat16: bool) -> FrozenEncoderConfig:
         directory = Path(snapshot_download(self.audio.model_id))
@@ -179,8 +210,19 @@ class EncoderConfig(FrozenModel):
             video_frames_per_step=self.video_frames_per_step,
             context_frames=self.context_frames,
         )
+        timing = self.audio.timing(directory, steps)
+        assert self.audio_history_frames % self.video_frames_per_step == 0
+        kept = self.audio_history_frames // self.video_frames_per_step
+        assert kept == 0 or timing.audio_history_steps == 0
+        chunk = self.audio_target_chunk_frames
+        assert chunk is None or chunk % self.video_frames_per_step == 0
+        window = self.audio_window_frames
+        assert window is None or window % self.video_frames_per_step == 0
         return FrozenEncoderConfig(
-            **self.audio.timing(directory, steps).model_dump(),
+            **timing.model_copy(update={"audio_history_steps": timing.audio_history_steps + kept}).model_dump(),
+            kept_audio_history_steps=kept,
+            audio_target_chunk_steps=None if chunk is None else chunk // self.video_frames_per_step,
+            audio_window_steps=None if window is None else window // self.video_frames_per_step,
             video=self.video,
             audio=self.audio,
             audio_model_directory=directory,

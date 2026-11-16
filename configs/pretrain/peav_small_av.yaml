@@ -1,0 +1,10 @@
+inherit: [peav_small_image.yaml]
+
+data:
+  latent_cache: ${oc.env:SPEAKUP_LATENTS}/mvp_peav_small_av
+
+encoder:
+  audio: {kind: pe_av, model_id: facebook/pe-av-small}
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_peav_small_av

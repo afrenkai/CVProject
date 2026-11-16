@@ -24,12 +24,8 @@ def time_embedding(h_dim: int) -> nn.Sequential:
     Returns:
         Timestep Embedding (Affine Fn (h,e), sigma, Affine Fn(e, h))
     """
-    #TODO: refactor all callers to pass emb_dim
-    return nn.Sequential(
-        nn.Linear(h_dim, h_dim * 4),
-        nn.SiLU(),
-        nn.Linear(h_dim * 4, h_dim)
-    )
+    # TODO: refactor all callers to pass emb_dim
+    return nn.Sequential(nn.Linear(h_dim, h_dim * 4), nn.SiLU(), nn.Linear(h_dim * 4, h_dim))
 
 
 class AudioVisualFlowPredictor(nn.Module):
@@ -43,8 +39,9 @@ class AudioVisualFlowPredictor(nn.Module):
         self.attention_backend = config.attention_backend
         self.noise_time_projection = GaussianFourierProjection(hidden // 2, scale=1.0, set_W_to_weight=False, log=False)
         self.null_action = nn.Parameter(torch.zeros(config.action_dimension))
+        self.fusion_tokens = config.fusion_tokens
         self.backbone_target_tokens = AudioVisualTokenProjector(
-            video_dimension, audio_dimension, hidden, config.spatial_grid, audio_tokens
+            video_dimension, audio_dimension, hidden, config.spatial_grid, audio_tokens, config.fusion_tokens
         )
         self.backbone_context_tokens = AudioVisualTokenProjector(
             video_dimension, audio_dimension, hidden, config.spatial_grid, audio_tokens
@@ -54,22 +51,59 @@ class AudioVisualFlowPredictor(nn.Module):
         self.duration_embedding = time_embedding(hidden)
         self.context_noise_embedding = time_embedding(hidden)
         self.backbone_blocks = nn.ModuleList(
-            AdaptiveAttentionBlock(hidden, config.backbone.heads, config.mlp_ratio, config.attention_backend)
+            AdaptiveAttentionBlock(
+                hidden,
+                config.backbone.heads,
+                config.mlp_ratio,
+                config.attention_backend,
+                config.token_layout(audio_tokens),
+            )
             for layer_index in range(config.backbone.layers)
         )
         self.diffusion_head = AudioVisualDDTHead(video_dimension, audio_dimension, audio_tokens, config)
 
-    def frame_attention_mask(self, target_steps: int, tokens_per_step: int, device: torch.device) -> Tensor | BlockMask:
-        frame_indices = repeat(torch.arange(target_steps, device=device), "time -> (time token)", token=tokens_per_step)
+    def attention_masks(
+        self, target_steps: int, context_steps: int, history_steps: int, video_patches: int, device: torch.device
+    ) -> tuple[Tensor | BlockMask, Tensor | BlockMask | None]:
+        audio, fusion = self.audio_tokens.tokens_per_step, self.fusion_tokens
+        step_groups = torch.cat(
+            (
+                torch.zeros(video_patches, dtype=torch.long, device=device),
+                torch.ones(audio, dtype=torch.long, device=device),
+                torch.full((fusion,), 2, dtype=torch.long, device=device),
+            )
+        )
+        target_groups = repeat(step_groups, "token -> (time token)", time=target_steps)
+        target_frames = repeat(
+            torch.arange(target_steps, device=device), "time -> (time token)", token=step_groups.shape[0]
+        )
+        context_groups = torch.cat(
+            (
+                repeat(step_groups[: video_patches + audio], "token -> (time token)", time=context_steps),
+                torch.ones(history_steps * audio, dtype=torch.long, device=device),
+            )
+        )
 
-        def frame_causal(batch_index: Tensor, head_index: Tensor, query_index: Tensor, key_index: Tensor) -> Tensor:
-            return frame_indices[query_index] >= frame_indices[key_index]
+        def self_rule(batch_index: Tensor, head_index: Tensor, query_index: Tensor, key_index: Tensor) -> Tensor:
+            causal = target_frames[query_index] >= target_frames[key_index]
+            if fusion == 0:
+                return causal
+            query_group, key_group = target_groups[query_index], target_groups[key_index]
+            return causal & ((query_group == key_group) | (query_group == 2) | (key_group == 2))
 
-        length = frame_indices.shape[0]
+        def context_rule(batch_index: Tensor, head_index: Tensor, query_index: Tensor, key_index: Tensor) -> Tensor:
+            query_group = target_groups[query_index]
+            return (query_group == context_groups[key_index]) | (query_group == 2)
+
+        length, context_length = target_groups.shape[0], context_groups.shape[0]
         if self.attention_backend == "sdpa":
-            sequence = torch.arange(length, device=device)
-            return frame_causal(sequence, sequence, sequence[:, None], sequence[None, :])
-        return create_block_mask(frame_causal, None, None, length, length, device=device)
+            queries, keys = torch.arange(length, device=device), torch.arange(context_length, device=device)
+            self_mask = self_rule(queries, queries, queries[:, None], queries[None, :])
+            context_mask = context_rule(queries, queries, queries[:, None], keys[None, :])
+        else:
+            self_mask = create_block_mask(self_rule, None, None, length, length, device=device)
+            context_mask = create_block_mask(context_rule, None, None, length, context_length, device=device)
+        return self_mask, None if fusion == 0 else context_mask
 
     @jaxtyped(typechecker=beartype)
     def flow_condition(
@@ -91,24 +125,44 @@ class AudioVisualFlowPredictor(nn.Module):
         noisy_video: Float[Tensor, "batch target_time patch video_feature"],
         noisy_audio: Float[Tensor, "batch target_time audio_feature"],
         context_video: Float[Tensor, "batch context_time patch video_feature"],
-        context_audio: Float[Tensor, "batch context_time audio_feature"],
+        context_audio: Float[Tensor, "batch audio_context_time audio_feature"],
         target_actions: Float[Tensor, "batch target_time action"],
         context_actions: Float[Tensor, "batch context_time action"],
         condition: Float[Tensor, "batch hidden"],
         attention_mask: Tensor | BlockMask,
+        context_mask: Tensor | BlockMask | None,
     ) -> Float[Tensor, "batch token hidden"]:
         targets = self.backbone_target_tokens(
             noisy_video, noisy_audio, 0, self.backbone_action_projection(target_actions)
         )
+        context_steps = context_video.shape[1]
+        history_steps = context_audio.shape[1] - context_steps
         context = self.backbone_context_tokens(
-            context_video, context_audio, -context_video.shape[1], self.backbone_action_projection(context_actions)
+            context_video,
+            context_audio[:, history_steps:],
+            -context_steps,
+            self.backbone_action_projection(context_actions),
+        )
+        history = (
+            self.backbone_context_tokens.history_tokens(context_audio[:, :history_steps], -context_audio.shape[1])
+            if history_steps
+            else None
         )
         global_condition = rearrange(condition, "batch hidden -> batch 1 hidden")
         for block in self.backbone_blocks:
             if self.activation_checkpointing and torch.is_grad_enabled():
-                targets = checkpoint(block, targets, context, global_condition, attention_mask, use_reentrant=False)
+                targets = checkpoint(
+                    block,
+                    targets,
+                    context,
+                    global_condition,
+                    attention_mask,
+                    context_mask,
+                    history,
+                    use_reentrant=False,
+                )
             else:
-                targets = block(targets, context, global_condition, attention_mask)
+                targets = block(targets, context, global_condition, attention_mask, context_mask, history)
         return targets
 
     @jaxtyped(typechecker=beartype)
@@ -119,7 +173,7 @@ class AudioVisualFlowPredictor(nn.Module):
         start_time: Float[Tensor, "batch"],  # noqa: F821
         end_time: Float[Tensor, "batch"],  # noqa: F821
         context_video: Float[Tensor, "batch context_time patch video_feature"],
-        context_audio: Float[Tensor, "batch context_time audio_feature"],
+        context_audio: Float[Tensor, "batch audio_context_time audio_feature"],
         actions: Float[Tensor, "batch target_time action"],
         context_actions: Float[Tensor, "batch context_time action"],
         context_noise: Float[Tensor, "batch"] | None = None,  # noqa: F821
@@ -128,15 +182,35 @@ class AudioVisualFlowPredictor(nn.Module):
         Float[Tensor, "batch target_time audio_feature"],
     ]:
         assert torch.all(end_time >= start_time)
-        attention_mask = self.frame_attention_mask(
-            noisy_video.shape[1], noisy_video.shape[2] + self.audio_tokens.tokens_per_step, noisy_video.device
+        attention_mask, context_mask = self.attention_masks(
+            noisy_video.shape[1],
+            context_video.shape[1],
+            context_audio.shape[1] - context_video.shape[1],
+            noisy_video.shape[2],
+            noisy_video.device,
         )
         condition = self.flow_condition(start_time, end_time, context_noise)
         targets = self.backbone_targets(
-            noisy_video, noisy_audio, context_video, context_audio, actions, context_actions, condition, attention_mask
+            noisy_video,
+            noisy_audio,
+            context_video,
+            context_audio,
+            actions,
+            context_actions,
+            condition,
+            attention_mask,
+            context_mask,
         )
         video_output, audio_output = self.diffusion_head(
-            noisy_video, noisy_audio, context_video, context_audio, actions, targets, condition, attention_mask
+            noisy_video,
+            noisy_audio,
+            context_video,
+            context_audio,
+            actions,
+            targets,
+            condition,
+            attention_mask,
+            context_mask,
         )
         remaining = (1.0 - start_time).clamp_min(0.05)
         return (

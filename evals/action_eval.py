@@ -5,12 +5,12 @@ from einops import rearrange, repeat
 from torch import Tensor
 from torch.utils.data import DataLoader, Subset
 from data.latent_cache import CachedClipDataset
-from evals.samples import ensemble_errors, rollout
+from evals.samples import ensemble_errors, kept_steps, resolve_checkpoint, rollout, save_summary
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 
 
-def action_variants(batch: dict[str, Tensor]) -> dict[str, dict[str, Tensor]]:
+def action_variants(objective: WorldModelObjective, batch: dict[str, Tensor]) -> dict[str, dict[str, Tensor]]:
     """
     in minibatch of actions
     we want to make sure that several ablations can be done.
@@ -29,6 +29,9 @@ def action_variants(batch: dict[str, Tensor]) -> dict[str, dict[str, Tensor]]:
         "shuffled": {**batch, "actions": batch["actions"][shuffled]},
         "null": {**batch, "action_present": torch.zeros_like(batch["action_present"])},
         "audio_shuffled": {**batch, "audio": batch["audio"][shuffled]},
+        "video_shuffled": {**batch, "video": batch["video"][shuffled]},
+        "audio_muted": {**batch, "audio": objective.normalizer.audio.mean.expand_as(batch["audio"])},
+        "video_off": {**batch, "video": objective.normalizer.video.mean.expand_as(batch["video"])},
     }
 
 
@@ -38,12 +41,12 @@ def sensitivity(
 ) -> dict[str, Tensor]:
     totals = {}
     predictions = {}
-    for name, variant in action_variants(batch).items():
+    for name, variant in action_variants(objective, batch).items():
         errors = ensemble_errors(objective, variant, members, integration_steps, seed)
         totals.update({f"{name}/{key}": value for key, value in errors.items() if key.endswith(("_crps", "_copy_mae"))})
         predictions[name] = rollout(objective, variant, integration_steps, seed)
     truth = predictions["true"]
-    for name in ("shuffled", "null", "audio_shuffled"):
+    for name in ("shuffled", "null", "audio_shuffled", "video_shuffled", "audio_muted", "video_off"):
         for modality, axes in (("video", (0, 2, 3)), ("audio", (0, 2))):
             change = (predictions[name][f"predicted_{modality}"] - truth[f"predicted_{modality}"]).square()
             error = (truth[f"predicted_{modality}"] - truth[f"true_{modality}"]).square()
@@ -99,23 +102,26 @@ def main(
     integration_steps: int,
 ) -> None:
     config = PretrainConfig.model_validate_json((run / "config.json").read_text())
-    device = torch.device("cuda")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     bfloat16 = config.trainer.precision == "bf16"
     encoder_config = config.encoder.resolve(bfloat16=bfloat16)
     objective = restore_objective(config, encoder_config, checkpoint_weights(checkpoint, True), device)
     dataset = CachedClipDataset(cache)
     present = [index for index in range(len(dataset)) if int(dataset[index]["action_present"]) == 1][:clips]
     assert len(present) >= batch_size, f"only {len(present)} clips with actions in {cache}"
+    assert batch_size >= candidates, f"retrieval needs {candidates} distinct clips per batch, got {batch_size}"
     collected: dict[str, list[Tensor]] = {}
     for index, batch in enumerate(DataLoader(Subset(dataset, present), batch_size=batch_size, drop_last=True)):
         steps = config.encoder.total_frames // encoder_config.video_frames_per_step
         batch = {
-            name: tensor.to(device)[:, -steps:] if tensor.dim() > 1 else tensor.to(device)
+            name: (
+                tensor.to(device)[:, -kept_steps(name, steps, objective.audio_history_steps) :]
+                if tensor.dim() > 1
+                else tensor.to(device)
+            )
             for name, tensor in batch.items()
         }
         batch = {**batch, "video": batch["video"].float(), "audio": batch["audio"].float()}
-        if config.objective.mode == "video_only":
-            batch = {**batch, "audio": torch.zeros_like(batch["audio"])}
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=bfloat16):
             metrics = sensitivity(objective, batch, members, integration_steps, seed=index)
             metrics.update(retrieval(objective, batch, candidates, members, integration_steps, seed=index))
@@ -129,7 +135,7 @@ def main(
 
     for modality in ("video", "audio"):
         true_crps = torch.tensor(summary[f"true/{modality}_crps"])
-        for name in ("shuffled", "null", "audio_shuffled"):
+        for name in ("shuffled", "null", "audio_shuffled", "video_shuffled", "audio_muted", "video_off"):
             summary[f"{name}/{modality}_crps_gain"] = (
                 torch.tensor(summary[f"{name}/{modality}_crps"]) / true_crps - 1.0
             ).tolist()
@@ -139,22 +145,23 @@ def main(
     for name, value in summary.items():
         shown = value if isinstance(value, float) else [round(entry, 4) for entry in value[:: max(1, len(value) // 7)]]
         print(f"{name}: {shown}", flush=True)
+    save_summary(summary, checkpoint, "action_eval", cache)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("run", type=Path)
-    parser.add_argument("checkpoint", type=Path)
+    parser.add_argument("checkpoint")
     parser.add_argument("cache", type=Path)
     parser.add_argument("--clips", type=int, default=128)
-    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--members", type=int, default=4)
     parser.add_argument("--candidates", type=int, default=8)
     parser.add_argument("--integration-steps", type=int, default=8)
     args = parser.parse_args()
     main(
         args.run,
-        args.checkpoint,
+        resolve_checkpoint(args.run, args.checkpoint),
         args.cache,
         args.clips,
         args.batch_size,

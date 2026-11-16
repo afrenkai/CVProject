@@ -1,0 +1,7 @@
+inherit: [mvp_large_actions.yaml]
+
+objective:
+  mode: video_only
+
+trainer:
+  output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions_video

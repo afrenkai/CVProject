@@ -6,6 +6,7 @@ from torch import Tensor
 from data.control_types import ControlLayout
 from data.latent_cache import CachedClipDataset
 from evals.eval_types import ActionSearchConfig, CostModality
+from evals.samples import kept_steps, resolve_checkpoint, save_summary
 from training.objective import WorldModelObjective, checkpoint_weights, restore_objective
 from training.training_types import PretrainConfig
 from transport.solvers import solve_flow_map
@@ -22,10 +23,12 @@ def predict(
     integration_steps: int,
 ) -> tuple[Tensor, Tensor]:
     candidates = controls.shape[0]
+    video, audio = objective.silence(video, audio)
     context_steps = objective.context_steps
     conditioned = objective.encode_actions(controls, torch.ones(candidates, dtype=torch.long, device=controls.device))
     context_video = repeat(video[:, :context_steps], "one ... -> (one candidate) ...", candidate=candidates)
-    context_audio = repeat(audio[:, :context_steps], "one ... -> (one candidate) ...", candidate=candidates)
+    audio_context_steps = context_steps + objective.audio_history_steps
+    context_audio = repeat(audio[:, :audio_context_steps], "one ... -> (one candidate) ...", candidate=candidates)
     sampled_video, sampled_audio = solve_flow_map(
         objective.predictor,
         noise_video.expand(candidates, *noise_video.shape[1:]),
@@ -40,14 +43,29 @@ def predict(
 
 
 def plan_cost(
-    predicted: tuple[Tensor, Tensor], video: Tensor, audio: Tensor, context_steps: int, modality: CostModality
+    objective: WorldModelObjective,
+    predicted: tuple[Tensor, Tensor],
+    video: Tensor,
+    audio: Tensor,
+    context_steps: int,
+    modality: CostModality,
 ) -> Tensor:
     video_cost = (predicted[0] - video[:, context_steps:]).square().mean(dim=(1, 2, 3))
+    audio_cost = (
+        (
+            objective.scored_audio(predicted[1])
+            - objective.scored_audio(audio[:, context_steps + objective.audio_history_steps :])
+        )
+        .square()
+        .mean(dim=(1, 2))
+    )
     match modality:
         case "video":
             return video_cost
+        case "audio":
+            return audio_cost
         case "audio_video":
-            return video_cost + (predicted[1] - audio[:, context_steps:]).square().mean(dim=(1, 2))
+            return video_cost + audio_cost
 
 
 def candidate_controls(
@@ -85,12 +103,12 @@ def search(
     context_steps = objective.context_steps
     chunks = (actions.shape[0] - context_steps) // settings.chunk_steps
     normalized_video = objective.normalizer.normalize_video(video)
-    normalized_audio = objective.normalizer.normalize_audio(audio)
+    normalized_audio = objective.prepare_audio(objective.normalizer.normalize_audio(audio))
     noise_video = torch.randn(
         (1, actions.shape[0] - context_steps, *video.shape[2:]), generator=generator, device=video.device
     )
     noise_audio = torch.randn(
-        (1, actions.shape[0] - context_steps, audio.shape[-1]), generator=generator, device=video.device
+        (1, actions.shape[0] - context_steps, normalized_audio.shape[-1]), generator=generator, device=video.device
     )
     probabilities = repeat(prior, "button -> chunk button", chunk=chunks).clone()
     mean = torch.zeros(chunks, 2, device=video.device)
@@ -106,20 +124,26 @@ def search(
             (settings.population, chunks, 2), generator=generator, device=video.device
         )
         controls = candidate_controls(context, keys, axes, buttons, layout, settings.chunk_steps)
-        costs = plan_cost(
-            predict(
-                objective,
-                normalized_video,
-                normalized_audio,
-                controls,
-                noise_video,
-                noise_audio,
-                settings.integration_steps,
-            ),
-            normalized_video,
-            normalized_audio,
-            context_steps,
-            modality,
+        costs = torch.cat(
+            [
+                plan_cost(
+                    objective,
+                    predict(
+                        objective,
+                        normalized_video,
+                        normalized_audio,
+                        group,
+                        noise_video,
+                        noise_audio,
+                        settings.integration_steps,
+                    ),
+                    normalized_video,
+                    normalized_audio,
+                    context_steps,
+                    modality,
+                )
+                for group in controls.split(settings.candidate_batch)
+            ]
         )
         elite = costs.topk(settings.elites, largest=False).indices
         if costs[elite[0]] < best["cost"]:
@@ -129,6 +153,7 @@ def search(
         deviation = settings.momentum * deviation + (1 - settings.momentum) * axes[elite].std(dim=0).clamp_min(0.05)
     recorded = actions[None]
     true_cost = plan_cost(
+        objective,
         predict(
             objective,
             normalized_video,
@@ -181,7 +206,7 @@ def control_scores(
 @torch.no_grad()
 def main(run: Path, checkpoint: Path, cache: Path, settings: ActionSearchConfig) -> None:
     config = PretrainConfig.model_validate_json((run / "config.json").read_text())
-    device = torch.device("cuda")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     bfloat16 = config.trainer.precision == "bf16"
     encoder_config = config.encoder.resolve(bfloat16=bfloat16)
     objective = restore_objective(config, encoder_config, checkpoint_weights(checkpoint, True), device)
@@ -189,7 +214,10 @@ def main(run: Path, checkpoint: Path, cache: Path, settings: ActionSearchConfig)
     clips = [dataset[index] for index in range(len(dataset))]
     steps = config.encoder.total_frames // encoder_config.video_frames_per_step
     clips = [
-        {name: tensor[-steps:] if tensor.dim() else tensor for name, tensor in clip.items()}
+        {
+            name: tensor[-kept_steps(name, steps, objective.audio_history_steps) :] if tensor.dim() else tensor
+            for name, tensor in clip.items()
+        }
         for clip in clips
         if int(clip["action_present"]) == 1
     ][: settings.clips]
@@ -198,16 +226,20 @@ def main(run: Path, checkpoint: Path, cache: Path, settings: ActionSearchConfig)
     pressed = torch.stack([clip["actions"][:, :button_count] for clip in clips]).mean(dim=(0, 1))
     buttons = torch.nonzero(pressed > settings.minimum_press_rate).flatten().to(device)
     prior = pressed[buttons.cpu()].to(device)
-    video_only = config.objective.mode == "video_only"
-    modalities: tuple[CostModality, ...] = ("video",) if video_only else ("video", "audio_video")
+    modalities: tuple[CostModality, ...]
+    match config.objective.mode:
+        case "video_only":
+            modalities = ("video",)
+        case "audio_only":
+            modalities = ("audio",)
+        case "audio_visual":
+            modalities = ("video", "audio", "audio_video")
     summary: dict[str, float] = {"clips": float(len(clips)), "buttons": float(buttons.numel())}
     for modality in modalities:
         generator = torch.Generator(device=device).manual_seed(settings.seed)
         results = []
         for index, clip in enumerate(clips):
             clip = {name: tensor.to(device).float() for name, tensor in clip.items()}
-            if video_only:
-                clip["audio"] = torch.zeros_like(clip["audio"])
             with torch.autocast("cuda", dtype=torch.bfloat16, enabled=bfloat16):
                 results.append(search(objective, clip, buttons, prior, settings, modality, generator))
             if index % 16 == 0:
@@ -216,14 +248,15 @@ def main(run: Path, checkpoint: Path, cache: Path, settings: ActionSearchConfig)
         summary.update({f"{modality}/{name}": value for name, value in scores.items()})
     for name, value in summary.items():
         print(f"{name}: {value:.4f}", flush=True)
+    save_summary(summary, checkpoint, "action_inference", cache)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("run", type=Path)
-    parser.add_argument("checkpoint", type=Path)
+    parser.add_argument("checkpoint")
     parser.add_argument("cache", type=Path)
     parser.add_argument("overrides", nargs="*")
     args = parser.parse_args()
     settings = ActionSearchConfig.model_validate(dict(override.split("=", 1) for override in args.overrides))
-    main(args.run, args.checkpoint, args.cache, settings)
+    main(args.run, resolve_checkpoint(args.run, args.checkpoint), args.cache, settings)

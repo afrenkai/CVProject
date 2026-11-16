@@ -10,6 +10,10 @@ encoder:
 
 objective:
   action_dropout: 0.1
+  audio_step_pooling: true
+  spatial_audio_target: false
 
 trainer:
   output: ${oc.env:SPEAKUP_RUNS}/mvp_large_actions
+  batch_size: 8
+  gradient_accumulation: 8

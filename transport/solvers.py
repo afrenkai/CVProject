@@ -36,7 +36,7 @@ def solve_flow_map(
     video_state: Float[Tensor, "batch time patch video_feature"],
     audio_state: Float[Tensor, "batch time audio_feature"],
     context_video: Float[Tensor, "batch context_time patch video_feature"],
-    context_audio: Float[Tensor, "batch context_time audio_feature"],
+    context_audio: Float[Tensor, "batch audio_context_time audio_feature"],
     actions: Float[Tensor, "batch time action"],
     integration_grid: Float[Tensor, "grid"],  # noqa: F821
     context_actions: Float[Tensor, "batch context_time action"],

@@ -15,3 +15,4 @@ vizdoom-crash.log
 .env
 .env.*
 logs/
+.vscode/
